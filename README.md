@@ -10,3 +10,5 @@ TaskSphere is a web-based task manager and to-do list application designed for s
 - **Database**: PostgreSQL/MySQL/SQLite for data storage.
 - **Storage**: S3/GCS/ABS for media/attachments.
 - **CI/CD**: GitHub Actions for automated testing, building, and deployment.
+
+### Architecture 
