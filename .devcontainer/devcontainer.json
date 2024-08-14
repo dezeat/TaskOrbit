@@ -1,18 +1,28 @@
 {
     "name": "TaskOrbit DevContainer",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11",
-    "features": {
-      "ghcr.io/devcontainers/features/poetry:1": {}
+    "build": {
+      "dockerfile":"Dockerfile",
+      "context": "."
     },
+    "mounts": [
+      // preserve bash / history
+      "source=projectname-bashhistory,target=/commandhistory,type=volumne"
+    ],
     "customizations": {
       "vscode": {
-        "extensions": [
-          "ms-python.python",
-          "csstools.poetry",
-          "ms-python.vscode-pylance"
-        ]
+          "extensions": [
+              "eamodio.gitlens",        // GitLens for git superpowers
+              "njpwerner.autodocstring",// AutoDocstring for Python docstrings
+              "ms-python.mypy-type-checker", // Mypy type checker
+              "ms-python.debugpy",      // Python debugger
+              "charliermarsh.ruff",     // Ruff linter
+              "ms-python.python",       // Python extension for Visual Studio Code
+              "ms-python.vscode-pylance"// Pylance language server
+          ]
       }
-    },
-    "postCreateCommand": "poetry install"
+  },
+  // Set user as root for Podman compatibility
+  "remoteUser": "root",
+  "postCreateCommand": "make setup"
   }
   
