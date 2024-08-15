@@ -6,8 +6,7 @@ RUN SNIPPET="export HISTFILE=/commandhistory/.bash_history && mkdir -p /commandh
     && echo $SNIPPET >> /root/.bashrc
 
 # Install Poetry
-ENV POETRY_HOME="/root/.local"
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # Add Poetry to PATH
-ENV PATH="$POETRY_HOME/bin:$PATH"
+ENV PATH="/root/.local/bin:$PATH"

@@ -6,7 +6,7 @@
     },
     "mounts": [
       // preserve bash / history
-      "source=projectname-bashhistory,target=/commandhistory,type=volumne"
+      "source=projectname-bashhistory,target=/commandhistory,type=volume"
     ],
     "customizations": {
       "vscode": {
@@ -22,7 +22,7 @@
       }
   },
   // Set user as root for Podman compatibility
-  "remoteUser": "root",
+  "remoteUser": "${env:USERNAME}",
   "postCreateCommand": "make setup"
   }
   
