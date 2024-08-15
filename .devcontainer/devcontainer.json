@@ -24,7 +24,6 @@
       }
   },
   // Set user as root for Podman compatibility
-  "remoteUser": "${env:USERNAME}",
   "postCreateCommand": "make setup"
   }
   
