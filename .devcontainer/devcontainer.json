@@ -6,7 +6,9 @@
     },
     "mounts": [
       // preserve bash / history
-      "source=projectname-bashhistory,target=/commandhistory,type=volume"
+      "source=projectname-bashhistory,target=/commandhistory,type=volume",
+      // get ssh-keys for git
+      "type=bind,source=/home/${localEnv:USER}/.ssh,target=/root/.ssh,readonly"
     ],
     "customizations": {
       "vscode": {
