@@ -4,6 +4,9 @@
       "dockerfile":"Dockerfile",
       "context": "."
     },
+     // to make permission-handling work on fedora, SELinux
+    "workspaceMount": "",
+    "runArgs": ["--volume=${localWorkspaceFolder}:/workspaces/${localWorkspaceFolderBasename}:Z"],
     "mounts": [
       // preserve bash / history
       "source=projectname-bashhistory,target=/commandhistory,type=volume",
