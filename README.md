@@ -1,6 +1,6 @@
 # TaskOrbit
 
-TaskOrbitvis a web-based task manager and to-do list application designed for simplicity and efficiency. The application uses HTMX for the frontend, with a robust Python-based backend. It is planned to include user authentication. 
+TaskOrbit is a web-based task manager and to-do list application designed for simplicity and efficiency. The application uses HTMX for the frontend, with a robust Python-based backend. It is planned to include user authentication. 
 
 
 ### Components
@@ -11,6 +11,6 @@ TaskOrbitvis a web-based task manager and to-do list application designed for si
 - **Storage**: S3/GCS/ABS for media/attachments.
 - **CI/CD**: GitHub Actions for automated testing, building, and deployment.
 
-### Architecture 
+### Architecture
 
 - TBA
