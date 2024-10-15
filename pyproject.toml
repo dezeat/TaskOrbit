@@ -12,8 +12,50 @@ python = "^3.10"
 pytest = "^8.3.2"
 requests = "^2.32.3"
 flask = "^3.0.3"
+pydantic = "^2.9.2"
+pyyaml = "^6.0.2"
+types-pyyaml = "^6.0.12.20240917"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.ruff.lint]
+select = ["ALL"]
+pydocstyle.convention = "google"
+ignore = ["COM812", "ISC001", "S101", "ANN002", "ANN003", "ANN101", "FIX002", "TD003", "ANN102", "FA102"]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.ruff.lint.pylint]
+max-args = 8
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**.py" = ["ANN201", "D100", "D104", "SLF001", "PLR2004", "INP001"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+
+[tool.ruff]
+exclude = [
+    "__builtins__.pyi",
+]
+
+[[tool.mypy.overrides]]
+module = "yaml.*"
+ignore_missing_imports = false
