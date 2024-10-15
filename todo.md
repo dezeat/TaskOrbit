@@ -6,7 +6,9 @@
     - [x] Setup make and create makefile 
 
 - [ ] Make very, very basic poc
-    - [ ] Return basic text for tasks
+    - [x] Understand how to return a basic html with flask
+    - [x] Draft first interface
+    - [x] Return basic text for tasks
     - [ ] Already make use of models/db and setup sqllite in very basic form
     - [ ] Use SQLAlechemy for db-agnostic interface
 

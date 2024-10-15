@@ -1,46 +1,44 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Data Input Interface</title>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Orbit</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.6/htmx.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="container">
-        <h1>Data Input Interface</h1>
-        <form action="/submit" method="POST">
-            <div class="field-group">
-                <label for="field1">Field 1:</label>
-                <input type="text" id="field1" name="field1">
+<body class="bg-gray-100 flex flex-col items-center min-h-screen py-8">
+    <div class="container max-w-md">
+        <h1 class="text-3xl font-bold text-center mb-8">Task Orbit</h1>
+        
+        <button class="w-full bg-blue-500 text-white py-2 rounded-lg mb-4 hover:bg-blue-600 transition duration-300">
+            Add Task
+        </button>
+        
+        <div class="flex justify-between mb-4">
+            <input type="text" placeholder="Search tasks" class="w-2/3 p-2 border rounded-lg">
+            <button class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 transition duration-300">
+                Filter
+            </button>
+        </div>
+        
+        <div class="space-y-4">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold">Task 1</h2>
             </div>
-            <div class="field-group">
-                <label for="field2">Field 2:</label>
-                <input type="text" id="field2" name="field2">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold">Task 2</h2>
             </div>
-            <div class="field-group">
-                <label for="field3">Field 3:</label>
-                <input type="text" id="field3" name="field3">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold">Task 3</h2>
             </div>
-            <div class="field-group">
-                <label for="field4">Field 4:</label>
-                <input type="text" id="field4" name="field4">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold">Task 4</h2>
             </div>
-            <div class="dropdown-group">
-                <label for="dropdown1">Dropdown 1:</label>
-                <select id="dropdown1" name="dropdown1">
-                    <option value="option1">Option 1</option>
-                    <option value="option2">Option 2</option>
-                    </select>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold">Task 5</h2>
             </div>
-            <div class="dropdown-group">
-                <label for="dropdown2">Dropdown 2:</label>
-                <select id="dropdown2" name="dropdown2">
-                    <option value="optionA">Option A</option>
-                    <option value="optionB">Option B</option>
-                    </select>
-            </div>
-            <div class="error-message" id="error"></div>
-            <button type="submit">Submit</button>
-        </form>
+        </div>
     </div>
 </body>
 </html>

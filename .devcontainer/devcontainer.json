@@ -5,7 +5,7 @@
         "context": "."
       },
       // Mount workspace explicitly, use Z flag for fedora/SELinux compatability 
-      "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
+      "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},Z,type=bind",
       "mounts": [
         // Preserve bash_history
         "source=projectname-bashhistory,target=/commandhistory,type=volume"
