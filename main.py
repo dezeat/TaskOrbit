@@ -1,16 +1,9 @@
-from flask import Flask, request, render_template
+from app import app
 
-def create_app():
-    app = Flask(__name__)
+def main() -> None:
+    flask_server = app.create_app(template_folder="templates")
+    flask_server.run()
 
-    @app.route('/')
-    def home():
-        return render_template("index.html")
 
-    @app.route('/submit', methods=['POST'])
-    def submit():
-        field1 = request.form.get('field1', '')
-
-        return 'Data submitted successfully!'
-
-    return app
+if __name__ == "__main__":
+    main()    
