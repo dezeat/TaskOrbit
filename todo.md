@@ -11,10 +11,13 @@
     - [x] Return basic text for tasks
 
 - [ ] Implement modular OOP DB Code
-    - [ ] Config for SQL-Alchemy
-        - [ ] create from file, dict
-        - [ ] validate
-        - [ ] ...
+    - [x] Config for SQL-Alchemy
+        - [x] create from file, dict
+        - [x] validate
+    - [ ] Simple SQLAlchemy- init script
+    - [ ] Data-Classes with pydantic
+    - [ ] SQL-Alchecmy Objects 
+    - [ ] Populate with test-data
     - [ ] App specific CRUD functionality
     - [ ] Init Script which checks and creates a sqllite db
         - [ ] is executed when no parameters are passed to script (prep for cli functionality)

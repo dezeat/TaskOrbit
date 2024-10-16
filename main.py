@@ -12,7 +12,10 @@ def main(filepath: Path) -> None:
     # DB Initialization
     db_config = DBConfigFactory().from_filepath(filepath)
 
-    flask_server = app.create_app(template_folder="templates")
+    # Afterwards I Expect a db connection with two tables user, tasks
+    db_session = start_up_db(db_config)
+
+    flask_server = app.create_app(template_folder="templates", db = db_session)
     flask_server.run()
 
 
