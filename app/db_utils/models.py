@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import UUID as UUIDTYPE
 
 from pydantic.dataclasses import dataclass
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID as UUIDCOLUMN
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import FunctionElement
@@ -14,7 +14,6 @@ from uuid6 import uuid7
 
 class UtcNow(FunctionElement):
     """Represents the current UTC timestamp for default and update operations."""
-
     type = DateTime()
     inherit_cache = True
 
@@ -30,11 +29,12 @@ class BaseTable(DeclarativeBase):
         nullable=False,
         sort_order=-1000,
     )
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        server_default=UtcNow(),
+        server_default=func.now(),  # Use SQLAlchemy's built-in function
         sort_order=9999,
     )
 
@@ -42,10 +42,11 @@ class BaseTable(DeclarativeBase):
         DateTime,
         nullable=True,
         index=True,
-        server_default=UtcNow(),
-        server_onupdate=UtcNow(),
+        server_default=func.now(),  # Use SQLAlchemy's built-in function
+        server_onupdate=func.now(),  # Use SQLAlchemy's built-in function
         sort_order=10000,
     )
+
 
     @abstractmethod
     def __repr__(self) -> str:
@@ -57,7 +58,6 @@ class UserTable(BaseTable):
 
     __tablename__ = "user"
 
-    name: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     last_login_ts: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
 
@@ -78,7 +78,6 @@ class TaskTable(BaseTable):
     __tablename__ = "task"
 
     user_id: Mapped[UUIDTYPE] = mapped_column(ForeignKey("user.uuid"))
-    name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str] = mapped_column(nullable=False)
     ts_acomplished: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     ts_deadline: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)

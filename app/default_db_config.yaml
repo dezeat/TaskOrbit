@@ -1,3 +1,3 @@
 type: sqlite
-host: /path/to/your/default_sqlite.db
-name: default_sqlite
+host: /app
+name: default_sqlite.db

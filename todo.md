@@ -10,17 +10,25 @@
     - [x] Draft first interface
     - [x] Return basic text for tasks
 
-- [ ] Implement modular OOP DB Code
+- [ ] Implement modular OOP DB MVP Code
     - [x] Config for SQL-Alchemy
         - [x] create from file, dict
         - [x] validate
-    - [ ] Simple SQLAlchemy- init script
-    - [ ] Data-Classes with pydantic
-    - [ ] SQL-Alchecmy Objects 
-    - [ ] Populate with test-data
+    - [x] Simple SQLAlchemy- init script
+    - [x] Data-Classes with pydantic
+    - [x] SQL-Alchecmy Objects 
     - [ ] App specific CRUD functionality
-    - [ ] Init Script which checks and creates a sqllite db
-        - [ ] is executed when no parameters are passed to script (prep for cli functionality)
+    - [ ] Populate with test-data
+
+- [ ] Unit Testing
+    - [ ] config
+    - [ ] database
+    - [ ] crud
+    - [ ] Build github actions pipeline with them
+
+- [ ] Work on App / Frontend
+    - [ ] make use of tempates
+    - [ ] Use CRUD to display and manage task-app
 
 - [ ] Package into a deployable container
     - [ ] Setup a Dockerfile and configure it to be deployable in a platform agnostic way
