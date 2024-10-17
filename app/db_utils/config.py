@@ -34,17 +34,15 @@ class BaseDBConfig:
     """
 
     type: str
-    url: str
+    host: str
     name: str
     possible_types: ClassVar[list[DatabaseType]]
     _required_fields: ClassVar[list[str]]
 
     @property
-    def get_type(self) -> DatabaseType:
+    def get_db_type(self) -> DatabaseType:
         """Get the DatabaseType instance from the string representation."""
-        return next(
-            db_type for db_type in DatabaseType if db_type.value == self.type
-        )
+        return next(db_type for db_type in DatabaseType if db_type.value == self.type)
 
     @classmethod
     def from_dict(cls, config_dict: dict[str, str]) -> "BaseDBConfig":
@@ -57,8 +55,6 @@ class BaseDBConfig:
             BaseDBConfig: An instance of the created database configuration.
         """
         return cls(**config_dict)
-
-
 
     @classmethod
     @model_validator(mode="before")
@@ -127,6 +123,11 @@ class BaseDBConfig:
     def _validate_str_fields(cls, v: str) -> str:
         """Wrapper method for running all validation checks on string fields."""
 
+    @property
+    @abstractmethod
+    def url(self) -> str:
+        """..."""
+
 
 @dataclass
 class LocalDBConfig(BaseDBConfig):
@@ -154,6 +155,11 @@ class LocalDBConfig(BaseDBConfig):
         """
         return cls._validate_str_field(v)
 
+    @property
+    def url(self) -> str:
+        """..."""
+        return f"sqlite://{self.host}/{self.name}"
+
 
 @dataclass
 class ServerDBConfig(BaseDBConfig):
@@ -172,6 +178,7 @@ class ServerDBConfig(BaseDBConfig):
     pw: str
     port: int
     driver: str
+    dialect: str
     possible_types: ClassVar[list[DatabaseType]] = [
         DatabaseType.MYSQL,
         DatabaseType.POSTGRESQL,
@@ -215,6 +222,12 @@ class ServerDBConfig(BaseDBConfig):
         return cls._validate_int_field(v)
 
 
+    @property
+    def url(self) -> str:
+        """..."""
+        return f"{self.dialect}+{self.driver}://{self.user}:{self.pw}@{self.host}:{self.port}/{self.name}"
+
+
 class DBConfigFactory:
     """Factory class for creating database configuration instances."""
 
@@ -229,14 +242,15 @@ class DBConfigFactory:
         Returns:
             BaseDBConfig: An instance of the appropriate database configuration class.
         """
-        if "type" not in config_dict:
+        db_type = config_dict.get("type")
+        if not db_type:
             msg = "DB-Type must be provided."
             raise DBConfigError(msg)
 
-        if config_dict["type"] in LocalDBConfig.possible_types:
+        if db_type in LocalDBConfig.possible_types:
             return LocalDBConfig.from_dict(config_dict)
 
-        elif config_dict["type"] in ServerDBConfig.possible_types:  # noqa: RET505
+        elif db_type in ServerDBConfig.possible_types:  # noqa: RET505
             return ServerDBConfig.from_dict(config_dict)
 
         else:
