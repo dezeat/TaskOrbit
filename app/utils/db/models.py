@@ -42,6 +42,14 @@ class BaseTable(DeclarativeBase):
         sort_order=10000,
     )
 
+    def to_dict(self) -> dict[str, Any]:
+        """..."""
+        return {
+            key: value
+            for key, value in self.__dict__.items()
+            if key in [attr for attr in dir(self) if not attr.startswith("_")]
+        }
+
     @abstractmethod
     def __repr__(self) -> str:
         """Return a string representation of the object."""
@@ -104,6 +112,7 @@ class User(BaseModel):
     """Data model for user-related information."""
 
     hashed_password: str
+    id: UUIDTYPE | None = None
     last_login_ts: datetime | None = None
 
     @classmethod
@@ -111,6 +120,7 @@ class User(BaseModel):
         """..."""
         return cls(
             name=data["name"],
+            id=data.get("id"),
             hashed_password=data["hashed_password"],
             last_login_ts=data.get("last_login_ts"),
         )
@@ -120,7 +130,8 @@ class User(BaseModel):
 class Task(BaseModel):
     """Data model for task-related information."""
 
-    user_id: int
+    user_id: UUIDTYPE
+    id: UUIDTYPE | None = None
     description: str | None = None
     ts_acomplished: datetime | None = None
     ts_deadline: datetime | None = None
@@ -130,8 +141,12 @@ class Task(BaseModel):
         """..."""
         return cls(
             name=data["name"],
+            id=data.get("id"),
             user_id=data["user_id"],
             description=data.get("description"),
             ts_acomplished=data.get("ts_acomplished"),
-            ts_deadline=data.get("ts_deadline")
+            ts_deadline=data.get("ts_deadline"),
         )
+
+
+MODEL_MAP = {"UserTable": User, "TaskTable": Task}

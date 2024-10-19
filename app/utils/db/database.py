@@ -8,6 +8,7 @@ from typing import ClassVar, Generic, TypeVar
 from pydantic.dataclasses import dataclass
 from sqlalchemy import Engine, MetaData, create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.utils.db import models
 from app.utils.db.config import (
@@ -57,6 +58,11 @@ class BaseDB(Generic[BaseDBConfigType]):
         if cls._metadata is None:
             cls._metadata = MetaData()
         return cls._metadata
+
+    @classmethod
+    def session(cls) -> scoped_session[Session]:
+        """..."""
+        return scoped_session(sessionmaker(bind=cls.engine()))
 
     @classmethod
     def _table_exist(cls, table_name: str) -> bool:
