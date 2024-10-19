@@ -58,8 +58,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
-# Flask stuff:
-instance/
+# Flask stuff:Make
 .webassets-cache
 
 # Scrapy stuff:
@@ -159,4 +158,4 @@ cython_debug/
 #.idea/
 
 
-*.db
+**/*.db

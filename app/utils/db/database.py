@@ -9,15 +9,15 @@ from pydantic.dataclasses import dataclass
 from sqlalchemy import Engine, MetaData, create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.db_utils import models
-from app.db_utils.config import (
+from app.utils.db import models
+from app.utils.db.config import (
     BaseDBConfig,
     DatabaseType,
     LocalDBConfig,
     ServerDBConfig,
 )
-from app.exceptions import DBSetupError
-from app.logger import logger
+from app.utils.exceptions import DBSetupError
+from app.utils.logger import logger
 
 BaseDBConfigType = TypeVar("BaseDBConfigType", bound=BaseDBConfig)
 
@@ -67,7 +67,7 @@ class BaseDB(Generic[BaseDBConfigType]):
     @classmethod
     def _create_table(cls, table_object: models.BaseTable) -> None:
         """..."""
-        table_object.__table__.create(cls.engine())  # type: ignore
+        table_object.__table__.create(cls.engine())  # type: ignore  # noqa: PGH003
 
     @classmethod
     def _create_tables_if_not_exist(cls) -> None:
