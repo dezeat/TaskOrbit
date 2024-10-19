@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 
 from app import app
-from app.databases.config import DBConfigFactory
+from app.db_utils.config import DBConfigFactory
+from app.db_utils.database import db_factory
 
 
 def main(filepath: Path) -> None:
@@ -12,10 +13,10 @@ def main(filepath: Path) -> None:
     # DB Initialization
     db_config = DBConfigFactory().from_filepath(filepath)
 
-    # Afterwards I Expect a db connection with two tables user, tasks
-    db_session = start_up_db(db_config)
+    db = db_factory(db_config)
+    db_engine = db.engine()
 
-    flask_server = app.create_app(template_folder="templates", db = db_session)
+    flask_server = app.create_app(template_folder="templates")
     flask_server.run()
 
 

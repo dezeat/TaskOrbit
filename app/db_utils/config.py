@@ -20,7 +20,6 @@ class DatabaseType(StrEnum):
     MYSQL = "mysql"
     # "AZURE_SQL = "azure_sql""
 
-
 @dataclass
 class BaseDBConfig:
     """Base class for database configuration.
@@ -220,7 +219,6 @@ class ServerDBConfig(BaseDBConfig):
             str: The validated port value as a string.
         """
         return cls._validate_int_field(v)
-
 
     @property
     def url(self) -> str:

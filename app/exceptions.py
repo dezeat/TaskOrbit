@@ -1,4 +1,3 @@
-
 class TaskOrbitError(Exception):
     """Base class for general exceptions in TaskOrbit app."""
 
@@ -14,6 +13,10 @@ class TaskOrbitError(Exception):
         """..."""
         return self.msg
 
+
 class DBConfigError(TaskOrbitError):
     """Exception raised when parsing of config fails."""
 
+
+class DBSetupError(TaskOrbitError):
+    """Exception raised when setup of DB."""

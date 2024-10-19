@@ -1,16 +1,17 @@
 """..."""
 from flask import Flask, render_template
-from sqlalchemy.orm import Session
-from db_utils import crud, models, 
 
-def create_app(template_folder: str = "templates", db: Session) -> Flask:
+from app.db_utils import crud, models
+
+
+def create_app(template_folder: str = "templates") -> Flask:
     """..."""
     app = Flask(__name__, template_folder=template_folder)
 
     @app.route("/")
     def home():
         return render_template("index.html")
-    
+
 
     # @app.route('/submit', methods=['POST'])
     # def submit():
@@ -18,7 +19,7 @@ def create_app(template_folder: str = "templates", db: Session) -> Flask:
     #     return 'Data submitted successfully!'
 
         crud.insert(models.TaskTable, models.Task)
-    
+
 
 
     return app
