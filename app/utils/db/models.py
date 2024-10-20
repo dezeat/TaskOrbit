@@ -1,21 +1,16 @@
 """SQLAlchemy ORM models and utility classes for a task management application."""
 
 from abc import ABC, abstractmethod
+from dataclasses import field
 from datetime import datetime
+from typing import Any
 from uuid import UUID as UUIDTYPE
 
 from pydantic.dataclasses import dataclass
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID as UUIDCOLUMN
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.sql.expression import FunctionElement
 from uuid6 import uuid7
-
-
-class UtcNow(FunctionElement):
-    """Represents the current UTC timestamp for default and update operations."""
-    type = DateTime()
-    inherit_cache = True
 
 
 class BaseTable(DeclarativeBase):
@@ -47,7 +42,6 @@ class BaseTable(DeclarativeBase):
         sort_order=10000,
     )
 
-
     @abstractmethod
     def __repr__(self) -> str:
         """Return a string representation of the object."""
@@ -78,7 +72,7 @@ class TaskTable(BaseTable):
     __tablename__ = "task"
 
     user_id: Mapped[UUIDTYPE] = mapped_column(ForeignKey("user.uuid"))
-    description: Mapped[str] = mapped_column(nullable=False)
+    description: Mapped[str] = mapped_column(nullable=True)
     ts_acomplished: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     ts_deadline: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
 
@@ -93,10 +87,16 @@ class TaskTable(BaseTable):
         )
 
 
+@dataclass
 class BaseModel(ABC):
     """Abstract base class for application data models."""
 
     name: str
+
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BaseModel":
+        """..."""
 
 
 @dataclass
@@ -106,12 +106,32 @@ class User(BaseModel):
     hashed_password: str
     last_login_ts: datetime | None = None
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "User":
+        """..."""
+        return cls(
+            name=data["name"],
+            hashed_password=data["hashed_password"],
+            last_login_ts=data.get("last_login_ts"),
+        )
+
 
 @dataclass
 class Task(BaseModel):
     """Data model for task-related information."""
 
     user_id: int
-    description: str
+    description: str | None = None
     ts_acomplished: datetime | None = None
     ts_deadline: datetime | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Task":
+        """..."""
+        return cls(
+            name=data["name"],
+            user_id=data["user_id"],
+            description=data.get("description"),
+            ts_acomplished=data.get("ts_acomplished"),
+            ts_deadline=data.get("ts_deadline")
+        )

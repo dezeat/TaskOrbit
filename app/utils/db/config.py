@@ -9,7 +9,7 @@ import yaml
 from pydantic import field_validator, model_validator
 from pydantic.dataclasses import dataclass
 
-from app.exceptions import DBConfigError
+from app.utils.exceptions import DBConfigError
 
 
 class DatabaseType(StrEnum):
