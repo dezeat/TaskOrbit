@@ -55,7 +55,7 @@ def update_(
 def delete_(session: Session, table: type[BaseTable], match_col: str) -> None:
     """..."""
     session.execute(delete(table).where(getattr(table, match_col).in_(match_col)))
-
+# comment
 
 def serialize_output(data: Sequence[Row[tuple[BaseTable]]]) -> list[BaseModel]:
     """..."""
