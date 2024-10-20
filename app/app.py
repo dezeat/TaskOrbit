@@ -11,7 +11,6 @@ from app.utils.logger import logger
 
 
 def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
-def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
     """..."""
     app = Flask(__name__, template_folder=template_folder)
 
@@ -29,9 +28,11 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
         if request.method == "GET":
             # Load all Tasks of the User
             tasks = crud.select_(
-                session=g.db_session, table=TaskTable, where_in_map={"user_id": [session["uid"]]}
+                session=g.db_session,
+                table=TaskTable,
+                where_in_map={"user_id": [session["uid"]]},
             )
-            
+
         return render_template("index.html")
 
     return app
@@ -39,6 +40,7 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
 
 def start_session_management(app: Flask, db: BaseDB) -> None:
     """..."""
+
     @app.before_request
     def before_request() -> None:
         """Create a new session before each request."""
