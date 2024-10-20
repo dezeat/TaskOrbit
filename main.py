@@ -84,10 +84,6 @@ def main(filepath: Path) -> None:
 if __name__ == "__main__":
     """..."""
     default_db_path = "app/utils/db/default_db_config.yaml"
-
-    db_config_path = default_db_path if len(sys.argv) < 2 else sys.argv[1]  # noqa: PLR2004
-    default_db_path = "app/utils/db/default_db_config.yaml"
-
     db_config_path = default_db_path if len(sys.argv) < 2 else sys.argv[1]  # noqa: PLR2004
 
     main(Path(db_config_path))
