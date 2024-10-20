@@ -11,7 +11,6 @@ from app.utils.logger import logger
 
 
 def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
-def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
     """..."""
     app = Flask(__name__, template_folder=template_folder)
 
