@@ -64,30 +64,18 @@ def main(filepath: Path) -> None:
     """Entry-point of TaskOrbit app."""
     # DB Initialization
     db_config = DBConfigFactory().from_filepath(filepath)
-
     db = db_factory(db_config)
     populate_db(db)
 
     flask_server = app.create_app(db)
-    # flask_server.config["SECRET_KEY"] = "your_secret_key"
-    # flask_server.config["DEBUG"] = True
-    # flask_server.config["ENV"] = "development"
-    # flask_server.config["HOST"] = "0.0.0.0"
-    # flask_server.config["PORT"] = 5000
-    # flask_server.config['UPLOAD_FOLDER'] = '/path/to/upload'
-    # flask_server.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
-    # flask_server.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
-
+    flask_server.config["SECRET_KEY"] = "your_secret_key"
+    
     flask_server.run()
 
 
 if __name__ == "__main__":
     """..."""
     default_db_path = "app/utils/db/default_db_config.yaml"
-
-    db_config_path = default_db_path if len(sys.argv) < 2 else sys.argv[1]  # noqa: PLR2004
-    default_db_path = "app/utils/db/default_db_config.yaml"
-
     db_config_path = default_db_path if len(sys.argv) < 2 else sys.argv[1]  # noqa: PLR2004
 
     main(Path(db_config_path))

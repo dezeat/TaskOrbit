@@ -11,34 +11,35 @@
     <div class="container max-w-md">
         <h1 class="text-3xl font-bold text-center mb-8">Task Orbit</h1>
         
-        <button class="w-full bg-blue-500 text-white py-2 rounded-lg mb-4 hover:bg-blue-600 transition duration-300">
+        <button class="w-full bg-blue-500 text-white py-2 rounded-lg mb-4 hover:bg-blue-600 transition duration-300"
+                hx-get="/show_add_task" 
+                hx-target="#task-popup" 
+                hx-swap="innerHTML" 
+                hx-trigger="click">
             Add Task
         </button>
-        
+        <div id="task-popup">
+            <!-- This is where your modal content will be rendered -->
+            {% include "partials/task_popup.html" %}
+        </div>
+
         <div class="flex justify-between mb-4">
-            <input type="text" placeholder="Search tasks" class="w-2/3 p-2 border rounded-lg">
-            <button class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 transition duration-300">
-                Filter
-            </button>
+            <input type="text" 
+                    placeholder="Search tasks" 
+                    class="p-2 border rounded-lg" 
+                    hx-get="/search_tasks" 
+                    hx-target="#task-list" 
+                    hx-swap="innerHTML" 
+                    hx-trigger="keydown">
         </div>
         
-        <div class="space-y-4">
-            <div class="bg-white p-4 rounded-lg shadow">
-                <h2 class="text-xl font-semibold">Task 1</h2>
+        <div class="container mx-auto p-4">
+            <h2 class="text-2xl font-bold mb-4">Task List</h2>
+            <div id="task-list" hx-get="/task_list" hx-trigger="load" hx-target="#task-list" hx-swap="innerHTML">
+                {% include "partials/task_list.html" %}
             </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <h2 class="text-xl font-semibold">Task 2</h2>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <h2 class="text-xl font-semibold">Task 3</h2>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <h2 class="text-xl font-semibold">Task 4</h2>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <h2 class="text-xl font-semibold">Task 5</h2>
-            </div>
-        </div>
+        </div>        
+
     </div>
 </body>
 </html>

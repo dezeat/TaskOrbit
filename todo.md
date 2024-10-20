@@ -28,11 +28,11 @@
 
 - [ ] Implement Template DB MVP
     - [ ] Make it possible to Create and Delete a Task
-        - [ ] Make Use of templates to load and display the tasks
+        - [x] Make Use of templates to load and display the tasks
             - [ ] Redesign to display description and maybe deadline
-        - [ ] Display all the tasks for the Users at the start of the session
-            - [ ] Always get the tasks at page refresh
-        - [ ]  Make Add Task Clickable, Pop-up for all Input fields
+        - [x] Display all the tasks for the Users at the start of the session
+            - [x] Always get the tasks at page refresh
+        - [x] Make Add Task Clickable, Pop-up for all Input fields
         - [ ] Introduce Button on the Right of the Task Field for deletion
 
 - [ ] Unit Testing
