@@ -26,7 +26,7 @@ def populate_db(db: BaseDB) -> None:
 
     # Create Task-Data
     admin_result = select_(
-        session=session, table=UserTable, where_in_map={"name": ["admin"]}
+        session=session, table=UserTable, filter_map={"name": ["admin"]}
     )
     db_session_handler(session)
 
