@@ -1,0 +1,6 @@
+<!-- task_list.html -->
+<ul class="h-96 overflow-y-auto" hx-get="/task_list" hx-trigger="newTask from:body">
+    {% for task in tasks %}
+        {% include 'partials/task.html' %}
+    {% endfor %}
+</ul>
