@@ -91,6 +91,15 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
         response.headers["HX-Trigger"] = "newTask"
 
         return response
+    @app.route("/edit-task", methods=["POST"])
+    def edit_task() -> str:
+        
+        # make text field to input fields
+        # send edit session request to db with delay after last key stroke
+        # update task-template
+
+        return render_template()
+
 
     return app
 
