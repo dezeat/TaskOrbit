@@ -75,9 +75,12 @@ def update_(
     )
 
 
-def delete_(session: Session, table: type[BaseTable], match_col: str) -> None:
+def delete_(
+    session: Session, table: type[BaseTable], match_col: dict[str, str]
+) -> None:
     """..."""
-    session.execute(delete(table).where(getattr(table, match_col).in_(match_col)))
+    match_col, match_val = next(iter(match_col.items()))
+    session.execute(delete(table).where(getattr(table, match_col) == (match_val)))
 
 
 # comment

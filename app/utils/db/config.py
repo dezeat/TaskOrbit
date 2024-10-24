@@ -20,6 +20,7 @@ class DatabaseType(StrEnum):
     MYSQL = "mysql"
     # "AZURE_SQL = "azure_sql""
 
+
 @dataclass
 class BaseDBConfig:
     """Base class for database configuration.

@@ -1,0 +1,10 @@
+    <!-- Icons that appear on mouse over -->
+    <div class="absolute top-2 right-2 hidden group-hover:flex space-x-2">
+        <button class="focus:outline-none" hx-get="/task-edit/" hx-target="#task" hx-swap="outerHTML">
+            <img src="/static/icons/pencil.png" alt="Edit" class="w-6 h-6">
+        </button>
+        <button class="focus:outline-none" hx-delete="/task-delete/{{ task.id }}" hx-target="closest div.mb-4" hx-swap="outerHTML">
+            <img src="/static/icons/delete.png" alt="Delete" class="w-6 h-6">
+        </button>
+    </div>
+</div>

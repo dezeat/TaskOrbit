@@ -1,9 +1,11 @@
 """..."""
 
+from uuid import UUID
+
 from flask import Flask, Response, g, make_response, render_template, request, session
 from sqlalchemy.exc import IntegrityError
 
-from app.utils.db.crud import filter_tasks, insert, select_
+from app.utils.db.crud import delete_, filter_tasks, insert, select_
 from app.utils.db.database import BaseDB
 from app.utils.db.models import Task, TaskTable, UserTable
 from app.utils.logger import logger
@@ -79,6 +81,16 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
     @app.route("/close_add_task", methods=["GET"])
     def close_add_task() -> str:
         return render_template("partials/task_popup.html", show_popup=False)
+
+    @app.route("/delete-task/<task_id>", methods=["DELETE"])
+    def delete_task(task_id: str) -> Response:
+        task_uid = UUID(task_id)
+        delete_(g.db_session, TaskTable, match_col={"id": task_uid})
+
+        response = make_response("", 204)
+        response.headers["HX-Trigger"] = "newTask"
+
+        return response
 
     return app
 
