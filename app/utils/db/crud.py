@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Sequence, TypeVar, cast
+from typing import TYPE_CHECKING, Sequence, TypeVar
+from uuid import UUID as UUIDTYPE
 
 from sqlalchemy import delete, select, update
 
-from app.utils.db.models import MODEL_MAP, BaseModel
+from app.utils.db.models import MODEL_MAP, BaseModel, TaskTable
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Row
@@ -31,15 +32,37 @@ def select_all(session: Session, table: type[BaseTable]) -> list[BaseTable]:
     return session.query(table).all()
 
 
-def select_(
-    session: Session, table: type[BaseTable], where_in_map: dict[str, list[str]]
+def filter_tasks(
+    session: Session, user_id: UUIDTYPE, search_string: str
 ) -> list[BaseModel]:
-    """..."""
-    select_col, select_val = next(iter(where_in_map.items()))
     result = session.execute(
-        select(table).where(getattr(table, select_col).in_(select_val))
+        select(TaskTable).where(
+            (TaskTable.user_id == user_id) & (TaskTable.name.icontains(search_string))
+            | (TaskTable.description.icontains(search_string))
+        )
     ).all()
 
+    return serialize_output(result)
+
+    # session.query.filter(
+    #     (TaskTable.user_id == user_id)
+    #     | TaskTable.name.icontains(search_string)
+    #     | TaskTable.description.icontains(search_string)
+    # )
+
+
+def select_(
+    session: Session, table: type[BaseTable], filter_map: dict[str, list[str]]
+) -> list[BaseModel]:
+    """..."""
+    filter_conditions = [
+        getattr(table, select_col).in_(select_val)
+        for select_col, select_val in filter_map.items()
+    ]
+
+    # refactor all to this, as it seems to return a simpler result
+    # result = session.query(table).filter(and_(*filter_conditions)).all()
+    result = session.execute(select(table).where(*filter_conditions)).all()
     return serialize_output(result)
 
 
@@ -52,10 +75,16 @@ def update_(
     )
 
 
-def delete_(session: Session, table: type[BaseTable], match_col: str) -> None:
+def delete_(
+    session: Session, table: type[BaseTable], match_col: dict[str, str]
+) -> None:
     """..."""
-    session.execute(delete(table).where(getattr(table, match_col).in_(match_col)))
+    match_col, match_val = next(iter(match_col.items()))
+    session.execute(delete(table).where(getattr(table, match_col) == (match_val)))
+
+
 # comment
+
 
 def serialize_output(data: Sequence[Row[tuple[BaseTable]]]) -> list[BaseModel]:
     """..."""

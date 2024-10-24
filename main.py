@@ -26,7 +26,7 @@ def populate_db(db: BaseDB) -> None:
 
     # Create Task-Data
     admin_result = select_(
-        session=session, table=UserTable, where_in_map={"name": ["admin"]}
+        session=session, table=UserTable, filter_map={"name": ["admin"]}
     )
     db_session_handler(session)
 
@@ -36,22 +36,22 @@ def populate_db(db: BaseDB) -> None:
         {
             "user_id": uid_admin,
             "name": "Develop WebApp",
-            "description": "To solidfiy knowledge, write basic webapp.",
+            "description": "Or is this my max character len",
         },
         {
             "user_id": uid_admin,
             "name": "Develop Frontend",
-            "description": "You do it for the BE, but you need to know basics of FE.",
+            "description": "Is this my max character len",
         },
     ]
-
 
     # Insert Task Data
     tasks = [Task.from_dict(task) for task in task_data]
     insert(session=session, table=TaskTable, data=tasks)
     db_session_handler(session)
 
-def db_session_handler(session: scoped_session[Session] ) -> None:
+
+def db_session_handler(session: scoped_session[Session]) -> None:
     """..."""
     try:
         session.commit()
@@ -69,7 +69,7 @@ def main(filepath: Path) -> None:
 
     flask_server = app.create_app(db)
     flask_server.config["SECRET_KEY"] = "your_secret_key"
-    
+
     flask_server.run()
 
 
