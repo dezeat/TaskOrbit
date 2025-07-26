@@ -1,0 +1,51 @@
+{
+  "name": "data-engineer-portfolio",
+  "version": "1.0.0",
+  "description": "Modern portfolio website for a data engineer with 3.5 years of experience",
+  "author": "Data Engineer",
+  "keywords": ["portfolio", "data-engineer", "nextjs", "tailwindcss", "typescript"],
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "export": "next build && next export",
+    "deploy": "npm run build && touch out/.nojekyll",
+    "clean": "rm -rf .next out",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18",
+    "react-dom": "^18",
+    "next": "14.0.4",
+    "gray-matter": "^4.0.3",
+    "remark": "^15.0.1",
+    "remark-html": "^16.0.1",
+    "date-fns": "^3.0.6",
+    "lucide-react": "^0.303.0",
+    "@headlessui/react": "^1.7.17",
+    "clsx": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "eslint": "^8",
+    "eslint-config-next": "14.0.4",
+    "@tailwindcss/postcss": "^0.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/data-engineer-portfolio"
+  },
+  "homepage": "https://username.github.io/portfolio-website"
+}
