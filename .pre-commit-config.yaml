@@ -31,4 +31,6 @@ repos:
         entry: poetry run pytest -q
         language: system
         description: Run tests (pre-push)
-        stages: [push]
+        stages: [commit, push]
+        pass_filenames: false
+        always_run: true

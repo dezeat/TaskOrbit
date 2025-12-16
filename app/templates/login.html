@@ -45,9 +45,37 @@
         
         <p class="mt-6 text-center text-sm text-gray-500">
             Don't have an account? 
-            <a href="#" class="font-medium text-blue-600 hover:text-blue-500">Register</a>
+            <a href="#" id="open-register" class="font-medium text-blue-600 hover:text-blue-500">Register</a>
         </p>
     </div>
+
+    {% include 'partials/register_popup.html' %}
+
+    <script>
+    async function sha256hex(message) {
+        const enc = new TextEncoder();
+        const data = enc.encode(message);
+        const hash = await crypto.subtle.digest('SHA-256', data);
+        const bytes = new Uint8Array(hash);
+        return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    document.querySelector('form[action="/login"]').addEventListener('submit', async function (e) {
+        const pwd = document.getElementById('password');
+        if (pwd && pwd.value) {
+            e.preventDefault();
+            const h = await sha256hex(pwd.value);
+            pwd.value = h;
+            this.submit();
+        }
+    });
+
+    // Open register modal
+    document.getElementById('open-register').addEventListener('click', function (ev) {
+        ev.preventDefault();
+        document.getElementById('register-modal').classList.remove('hidden');
+    });
+    </script>
 
 </body>
 </html>

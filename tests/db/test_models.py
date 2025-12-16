@@ -7,8 +7,8 @@ def test_user_from_dict_minimal(fix_user_data: dict[str, str]) -> None:
     """User.from_dict constructs minimal User dataclass."""
     u = User.from_dict(fix_user_data)
 
-    assert u.name == "alice"
-    assert u.hashed_password == "pw"  # noqa: S105
+    assert u.hashed_password == fix_user_data["hashed_password"]
+    assert u.name == fix_user_data["name"]
     assert u.id is None
 
 

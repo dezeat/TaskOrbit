@@ -21,7 +21,9 @@ from flask import (
     session,
     url_for,
 )
+from jinja2 import TemplateNotFound
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from werkzeug.wrappers import Response as WResponse
 
 from app.utils.db.crud import (
@@ -35,6 +37,7 @@ from app.utils.db.crud import (
     search_tasks as crud_search_tasks,
 )
 from app.utils.db.models import Task, TaskTable, User, UserTable
+from app.utils.db.models import User as UserModel
 from app.utils.logger import logger
 
 bp = Blueprint("main", __name__)
@@ -82,21 +85,104 @@ def login_required(f: Callable[..., WResponse | str]) -> Callable[..., WResponse
 def login() -> WResponse | str:
     """Handle user login and session creation."""
     if request.method == "GET":
-        return render_template("login.html")
+        try:
+            return render_template("login.html")
+        except TemplateNotFound:
+            return "Login"
 
     username = request.form.get("username")
+    password = request.form.get("password")
 
+    db_session = getattr(g, "db_session", None)
+    # mypy: cast session to SQLAlchemy Session to satisfy typed helper signatures
     users = fetch_where(
-        session=g.db_session, table=UserTable, filter_map={"name": [username]}
+        session=cast(Session, db_session),
+        table=UserTable,
+        filter_map={"name": [username]},
     )
 
+    response: WResponse | str | None = None
     if not users:
-        return render_template("login.html", error="User not found")
+        response = make_response("User not found", 200)
+    else:
+        user = cast(User, users[0])
+        # Expect the client to send an already-hashed password string.
+        if not password or password != user.hashed_password:
+            response = make_response("Invalid password", 200)
+        else:
+            session["uid"] = user.id
+            return redirect(url_for("main.home"))
 
-    user = cast(User, users[0])
-    session["uid"] = user.id
+    if response is not None:
+        try:
+            return render_template(
+                "login.html",
+                error=(
+                    response.get_data().decode()
+                    if hasattr(response, "get_data")
+                    else None
+                ),
+            )
+        except TemplateNotFound:
+            return response
 
-    return redirect(url_for("main.home"))
+    return None
+
+
+@bp.route("/register", methods=["GET", "POST"])
+def register() -> WResponse | str:
+    """Handle user registration. Password is expected to be hashed client-side."""
+    result: WResponse | str | None = None
+
+    if request.method == "GET":
+        try:
+            result = render_template("partials/register_popup.html")
+        except TemplateNotFound:
+            result = "Register"
+        return result
+
+    username = request.form.get("username")
+    password = request.form.get("password")
+
+    db_session = getattr(g, "db_session", None)
+
+    if not username or not password:
+        result = render_template("partials/register_popup.html", error="Missing fields")
+    else:
+        # Ensure user does not already exist
+        existing = fetch_where(
+            session=cast(Session, db_session),
+            table=UserTable,
+            filter_map={"name": [username]},
+        )
+        if existing:
+            result = render_template(
+                "partials/register_popup.html", error="User exists"
+            )
+        else:
+            # Create user record (dataclass expected by bulk_insert)
+            user = UserModel(name=username, hashed_password=password)
+            try:
+                bulk_insert(
+                    session=cast(Session, db_session),
+                    table=UserTable,
+                    data=[user],
+                )
+                result = redirect(url_for("main.login"))
+            except SQLAlchemyError as exc:
+                logger.exception("Error creating user: %s", exc)
+                try:
+                    result = render_template(
+                        "partials/register_popup.html", error="Could not create user"
+                    )
+                except TemplateNotFound:
+                    result = make_response("Could not create user", 200)
+
+    # Fallback to a safe response if something unexpected happened
+    if result is None:
+        result = make_response("", 200)
+
+    return result
 
 
 @bp.route("/logout")

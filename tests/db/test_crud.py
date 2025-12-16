@@ -12,6 +12,34 @@ from app.utils.db import crud
 from app.utils.db.models import Task, User
 
 
+@pytest.fixture
+def fix_fake_session() -> type[object]:
+    """Provide a lightweight fake session class for CRUD tests."""
+
+    class FakeSession:
+        def __init__(self, execute_result: object | None = None) -> None:
+            self.added: list[object] = []
+            self._execute_result = execute_result
+
+        def add(self, obj: object) -> None:
+            self.added.append(obj)
+
+        def execute(self, _stmt: object) -> object:
+            class _ScalarResult:
+                def __init__(self, data: object) -> None:
+                    self._data = data
+
+                def scalars(self) -> "_ScalarResult":
+                    return self
+
+                def all(self) -> object:
+                    return self._data
+
+            return _ScalarResult(self._execute_result)
+
+    return FakeSession
+
+
 def test_bulk_insert_accepts_dataclass_and_dict(
     fix_fake_session: Callable[..., type],
 ) -> None:
@@ -51,25 +79,32 @@ def test_bulk_insert_rejects_other_types(fix_fake_session: Callable[..., type]) 
 def test_update_delete_where_require_non_empty(
     fix_fake_session: Callable[..., type],
 ) -> None:
-    """update_where and delete_where validate match arg presence."""
+    """update_where validates match arg presence."""
     sess = fix_fake_session()
 
     with pytest.raises(ValueError, match=".*"):
         crud.update_where(sess, object, {}, {})
 
+
+def test_delete_where_requires_non_empty(fix_fake_session: Callable[..., type]) -> None:
+    """delete_where validates match arg presence."""
+    sess = fix_fake_session()
+
     with pytest.raises(ValueError, match=".*"):
         crud.delete_where(sess, object, {})
 
 
-def test_serialize_output_handles_various_shapes(monkeypatch: MonkeyPatch) -> None:
+def test_serialize_output_handles_various_shapes(
+    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
+) -> None:
     """serialize_output converts ORM-like items into dataclass models."""
     # create lightweight distinct fake row types to avoid colliding class names
     user_row = type("UserRow", (), {})
     task_row = type("TaskRow", (), {})
 
     u = user_row()
-    u.name = "alice"
-    u.hashed_password = "pw"  # noqa: S105
+    u.name = fix_user_data["name"]
+    u.hashed_password = fix_user_data["hashed_password"]
     u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
 
     t = task_row()
@@ -81,19 +116,65 @@ def test_serialize_output_handles_various_shapes(monkeypatch: MonkeyPatch) -> No
     monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
     monkeypatch.setitem(crud.MODEL_MAP, task_row.__name__, Task)
 
-    # single instance
+    # covered by more specific tests below
+
+
+def test_serialize_output_single_instance(
+    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
+) -> None:
+    """serialize_output handles a single object instance."""
+    user_row = type("UserRow", (), {})
+    u = user_row()
+    u.name = fix_user_data["name"]
+    u.hashed_password = fix_user_data["hashed_password"]
+    u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
+
+    monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
+
     out = crud.serialize_output(u)
     assert isinstance(out[0], User)
-    assert out[0].name == "alice"
+    assert out[0].name == fix_user_data["name"]
 
-    # tuple-like row
+
+def test_serialize_output_tuple_like(
+    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
+) -> None:
+    """serialize_output handles tuple-like rows."""
+    user_row = type("UserRow", (), {})
+    u = user_row()
+    u.name = fix_user_data["name"]
+    u.hashed_password = fix_user_data["hashed_password"]
+    u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
+
+    monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
+
     out = crud.serialize_output((u,))
     assert isinstance(out[0], User)
 
-    # mixed sequence
+
+def test_serialize_output_mixed_sequence(
+    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
+) -> None:
+    """serialize_output handles mixed sequences of different row types."""
+    user_row = type("UserRow", (), {})
+    task_row = type("TaskRow", (), {})
+
+    u = user_row()
+    u.name = fix_user_data["name"]
+    u.hashed_password = fix_user_data["hashed_password"]
+    u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
+
+    t = task_row()
+    t.name = "do"
+    t.user_id = uuid4()
+    t.to_dict = lambda: {"name": t.name, "user_id": t.user_id}
+
+    monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
+    monkeypatch.setitem(crud.MODEL_MAP, task_row.__name__, Task)
+
     out = crud.serialize_output([u, t])
     names = [item.name for item in out]
-    assert "alice" in names
+    assert fix_user_data["name"] in names
     assert "do" in names
 
 

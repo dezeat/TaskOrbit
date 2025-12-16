@@ -79,6 +79,25 @@ class ServerDBConfig(BaseDBConfig):
 class DBConfigFactory:
     """Factory to load and validate DB configurations from files."""
 
+    @staticmethod
+    def _resolve_db_config(data: dict[str, object]) -> BaseDBConfig:
+        """Resolve a raw mapping into a typed DB config instance.
+
+        This helper mirrors the logic used when loading from file and is
+        provided for testability.
+        """
+        db_type = data.get("type")
+
+        try:
+            if db_type == DatabaseType.SQLITE:
+                return LocalDBConfig.model_validate(data)
+
+            return ServerDBConfig.model_validate(data)
+
+        except ValidationError as e:
+            msg = f"Configuration Error: {e}"
+            raise DBConfigError(msg) from e
+
     def from_filepath(self, filepath: Path) -> BaseDBConfig:
         """Load YAML config and return a validated config object."""
         if not filepath.exists():
@@ -103,6 +122,7 @@ class DBConfigFactory:
         try:
             if db_type == DatabaseType.SQLITE:
                 return LocalDBConfig.model_validate(data)
+
             return ServerDBConfig.model_validate(data)
 
         except ValidationError as e:
