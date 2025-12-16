@@ -19,13 +19,15 @@ from app.utils.db.models import MODEL_MAP, BaseModel, TaskTable
 if TYPE_CHECKING:
     from uuid import UUID as UUIDTYPE
 
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Session, scoped_session
 
     from app.utils.db.models import BaseTable
 
 
 def bulk_insert(
-    session: Session, table: type[BaseTable], data: Sequence[object]
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+    data: Sequence[object],
 ) -> None:
     """Insert dataclass instances or dicts into `table`.
 
@@ -48,7 +50,7 @@ def bulk_insert(
 
 
 def search_tasks(
-    session: Session, user_id: UUIDTYPE, search_string: str
+    session: Session | scoped_session[Session], user_id: UUIDTYPE, search_string: str
 ) -> list[BaseModel]:
     """Return tasks for `user_id` that match `search_string` (case-insensitive).
 
@@ -67,14 +69,19 @@ def search_tasks(
     return serialize_output(rows)
 
 
-def fetch_all(session: Session, table: type[BaseTable]) -> list[BaseModel]:
+def fetch_all(
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+) -> list[BaseModel]:
     """Return all rows from `table` converted to application models."""
     rows = session.execute(select(table)).scalars().all()
     return serialize_output(rows)
 
 
 def fetch_where(
-    session: Session, table: type[BaseTable], filter_map: dict[str, Sequence[object]]
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+    filter_map: dict[str, Sequence[object]],
 ) -> list[BaseModel]:
     """Select rows matching `filter_map` and return converted model objects.
 
@@ -98,7 +105,7 @@ def fetch_where(
 
 
 def fetch_user_tasks(
-    session: Session, user_id: UUIDTYPE, *, completed: bool
+    session: Session | scoped_session[Session], user_id: UUIDTYPE, *, completed: bool
 ) -> list[BaseModel]:
     """Fetch tasks based on completion status (ts_acomplished is None or Not None)."""
     stmt = select(TaskTable).where(TaskTable.user_id == user_id)
@@ -115,7 +122,7 @@ def fetch_user_tasks(
 
 
 def update_where(
-    session: Session,
+    session: Session | scoped_session[Session],
     table: type[BaseTable],
     match_cols: dict[str, object],
     updates: dict[str, object],
@@ -135,7 +142,9 @@ def update_where(
 
 
 def delete_where(
-    session: Session, table: type[BaseTable], match_col: dict[str, object]
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+    match_col: dict[str, object],
 ) -> None:
     """Delete rows from `table` matching the provided column/value mapping.
 

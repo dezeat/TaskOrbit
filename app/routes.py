@@ -13,7 +13,6 @@ from uuid import UUID
 
 from flask import (
     Blueprint,
-    Response,
     g,
     make_response,
     redirect,
@@ -22,6 +21,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.wrappers import Response as WResponse
 
 from app.utils.db.crud import (
     bulk_insert,
@@ -39,7 +39,7 @@ from app.utils.logger import logger
 bp = Blueprint("main", __name__)
 
 
-def _handle_unauthorized() -> Response:
+def _handle_unauthorized() -> WResponse:
     """Handle redirection for unauthorized access, supporting HTMX headers."""
     if request.headers.get("HX-Request"):
         resp = make_response("", 200)
@@ -49,10 +49,10 @@ def _handle_unauthorized() -> Response:
 
 
 
-def login_required(f: Callable[..., Response | str]) -> Callable[..., Response | str]:
+def login_required(f: Callable[..., WResponse | str]) -> Callable[..., WResponse | str]:
     """Decorator to require login and validate session integrity."""
     @wraps(f)
-    def decorated_function(*args: object, **kwargs: object) -> Response | str:
+    def decorated_function(*args: object, **kwargs: object) -> WResponse | str:
         if "uid" not in session:
             return _handle_unauthorized()
         try:
@@ -65,7 +65,7 @@ def login_required(f: Callable[..., Response | str]) -> Callable[..., Response |
 
 
 @bp.route("/login", methods=["GET", "POST"])
-def login() -> Response:
+def login() -> WResponse | str:
     """Handle user login and session creation."""
     if request.method == "GET":
         return render_template("login.html")
@@ -86,7 +86,7 @@ def login() -> Response:
 
 
 @bp.route("/logout")
-def logout() -> Response:
+def logout() -> WResponse:
     """Clear session and return to login."""
     session.clear()
     return redirect(url_for("main.login"))
@@ -94,7 +94,7 @@ def logout() -> Response:
 
 @bp.route("/", methods=["GET"])
 @login_required
-def home() -> Response | str:
+def home() -> WResponse | str:
     """Render the dashboard for the authenticated user."""
     status = request.args.get("status", "active")
     is_completed = status == "done"
@@ -108,7 +108,7 @@ def home() -> Response | str:
 
 @bp.route("/task_list", methods=["GET"])
 @login_required
-def task_list() -> Response | str:
+def task_list() -> WResponse | str:
     """Return the tasks list partial for the requested status."""
     status = request.args.get("status", "active")
     is_completed = status == "done"
@@ -122,7 +122,7 @@ def task_list() -> Response | str:
 
 @bp.route("/toggle_task/<task_id>", methods=["POST"])
 @login_required
-def toggle_task(task_id: str) -> Response:
+def toggle_task(task_id: str) -> WResponse:
     """Toggle a task's completion timestamp and trigger a client reload."""
     task_uid = UUID(task_id)
 
@@ -144,7 +144,7 @@ def toggle_task(task_id: str) -> Response:
 
 @bp.route("/search_tasks", methods=["GET"])
 @login_required
-def search_tasks() -> Response | str:
+def search_tasks() -> WResponse | str:
     """Search tasks by text and return the task list partial."""
     search_string = request.args.get("search")
 
@@ -169,7 +169,7 @@ def show_add_task() -> str:
 
 @bp.route("/add_task", methods=["POST"])
 @login_required
-def add_task() -> Response:
+def add_task() -> WResponse:
     """Create a new task from form data and trigger list refresh."""
     task = Task(
         user_id=session["uid"],
@@ -196,7 +196,7 @@ def close_add_task() -> str:
 
 @bp.route("/delete-task/<task_id>", methods=["DELETE"])
 @login_required
-def delete_task(task_id: str) -> Response:
+def delete_task(task_id: str) -> WResponse:
     """Delete a task and signal the client to refresh the list."""
     task_uid = UUID(task_id)
     delete_where(g.db_session, TaskTable, match_col={"id": task_uid})
@@ -209,7 +209,7 @@ def delete_task(task_id: str) -> Response:
 
 @bp.route("/show_edit_task/<task_id>", methods=["GET"])
 @login_required
-def show_edit_task(task_id: str) -> Response | str:
+def show_edit_task(task_id: str) -> WResponse | str:
     """Render the edit popup pre-filled with the selected task."""
     task_uid = UUID(task_id)
 
@@ -218,14 +218,14 @@ def show_edit_task(task_id: str) -> Response | str:
     )
 
     if not tasks:
-        return "", 404
+        return make_response("", 404)
 
     return render_template("partials/task_popup.html", show_popup=True, task=tasks[0])
 
 
 @bp.route("/edit_task/<task_id>", methods=["POST"])
 @login_required
-def edit_task(task_id: str) -> Response:
+def edit_task(task_id: str) -> WResponse:
     """Update a task from form data and close the popup."""
     task_uid = UUID(task_id)
 
@@ -238,7 +238,7 @@ def edit_task(task_id: str) -> Response:
         session=g.db_session,
         table=TaskTable,
         match_cols={"id": task_uid},
-        updates=updates,
+        updates=cast(dict[str, object], updates),
     )
 
     response = make_response(
