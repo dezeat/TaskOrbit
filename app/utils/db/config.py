@@ -1,4 +1,8 @@
-"""..."""
+"""Database configuration dataclasses and a factory for YAML configs.
+
+Defines typed dataclasses for local and server DB configuration and a
+factory to load those from YAML files.
+"""
 
 from abc import abstractmethod
 from enum import StrEnum
@@ -17,8 +21,6 @@ class DatabaseType(StrEnum):
 
     SQLLITE = "sqlite"
     POSTGRESQL = "postgresql"
-    MYSQL = "mysql"
-    # "AZURE_SQL = "azure_sql""
 
 
 @dataclass
@@ -121,12 +123,16 @@ class BaseDBConfig:
     @classmethod
     @abstractmethod
     def _validate_str_fields(cls, v: str) -> str:
-        """Wrapper method for running all validation checks on string fields."""
+        """Validate string fields for the concrete DB config class.
+
+        Implementations should call shared validators and raise
+        `DBConfigError` for invalid values.
+        """
 
     @property
     @abstractmethod
     def url(self) -> str:
-        """..."""
+        """Return a SQLAlchemy-compatible connection URL for the config."""
 
 
 @dataclass
@@ -157,7 +163,7 @@ class LocalDBConfig(BaseDBConfig):
 
     @property
     def url(self) -> str:
-        """..."""
+        """Return the SQLite connection URL for a local DB config."""
         return f"sqlite://{self.host}/{self.name}"
 
 
@@ -223,7 +229,7 @@ class ServerDBConfig(BaseDBConfig):
 
     @property
     def url(self) -> str:
-        """..."""
+        """Return the SQLAlchemy connection URL for server DB configs."""
         return f"{self.dialect}+{self.driver}://{self.user}:{self.pw}@{self.host}:{self.port}/{self.name}"
 
 

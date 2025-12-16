@@ -10,7 +10,11 @@ class TaskOrbitError(Exception):
         self.msg = msg
 
     def __str__(self) -> str:
-        """..."""
+        """Return the stored exception message for display.
+
+        Keeps the string representation simple so exceptions are readable
+        in logs and traces.
+        """
         return self.msg
 
 

@@ -1,4 +1,8 @@
-"""Here all the Init stuff happens."""
+"""Database engine and table setup helpers.
+
+Provides `BaseDB` and concrete backends that manage engines, sessions and
+table creation for the application.
+"""
 
 import inspect as insp
 from abc import abstractmethod
@@ -25,7 +29,12 @@ BaseDBConfigType = TypeVar("BaseDBConfigType", bound=BaseDBConfig)
 
 @dataclass
 class BaseDB(Generic[BaseDBConfigType]):
-    """..."""
+    """Abstract base for database wrappers providing setup helpers.
+
+    Concrete subclasses must provide a `_check_conn` implementation. The
+    class exposes methods to build an engine, manage table objects and
+    produce scoped sessions.
+    """
 
     config: BaseDBConfig
     _valid_db_type: ClassVar[DatabaseType]
@@ -35,14 +44,14 @@ class BaseDB(Generic[BaseDBConfigType]):
 
     @classmethod
     def engine(cls) -> Engine:
-        """..."""
+        """Return the SQLAlchemy engine for this DB, creating it if needed."""
         if cls._engine is None:
             cls._engine = create_engine(cls.config.url, echo=True)
         return cls._engine
 
     @classmethod
     def tables(cls) -> dict[str, models.BaseTable]:
-        """..."""
+        """Discover and return a mapping of table name to ORM table class."""
         if cls._tables is None:
             classes = insp.getmembers(models, insp.isclass)
             cls._tables = {
@@ -54,30 +63,30 @@ class BaseDB(Generic[BaseDBConfigType]):
 
     @classmethod
     def metadata(cls) -> MetaData:
-        """..."""
+        """Return a MetaData object used for creating tables when needed."""
         if cls._metadata is None:
             cls._metadata = MetaData()
         return cls._metadata
 
     @classmethod
     def session(cls) -> scoped_session[Session]:
-        """..."""
+        """Return a scoped SQLAlchemy session factory bound to the engine."""
         return scoped_session(sessionmaker(bind=cls.engine()))
 
     @classmethod
     def _table_exist(cls, table_name: str) -> bool:
-        """..."""
+        """Return True if the named table exists in the configured DB."""
         inspector = inspect(cls.engine())
         return inspector.has_table(table_name)
 
     @classmethod
     def _create_table(cls, table_object: models.BaseTable) -> None:
-        """..."""
+        """Create a single table object on the configured engine."""
         table_object.__table__.create(cls.engine())  # type: ignore  # noqa: PGH003
 
     @classmethod
     def _create_tables_if_not_exist(cls) -> None:
-        """..."""
+        """Create all declared tables that are missing from the database."""
         for table_name, table_object in cls.tables().items():
             if not cls._table_exist(table_name):
                 logger.info(f"Table: {table_name} not found in {cls.config.name}")
@@ -88,7 +97,7 @@ class BaseDB(Generic[BaseDBConfigType]):
 
     @classmethod
     def _create_all_tables(cls) -> None:
-        """..."""
+        """Create all tables using SQLAlchemy metadata for the engine."""
         cls.metadata().create_all(cls.engine())
         logger.info(f"All specified tables created in {cls.config.name}")
 
@@ -103,11 +112,15 @@ class BaseDB(Generic[BaseDBConfigType]):
     @classmethod
     @abstractmethod
     def _check_conn(cls) -> bool:
-        """..."""
+        """Verify that the database is reachable and return connection state."""
 
 
-class SQLiteDB(BaseDB[LocalDBConfig]):
-    """..."""
+    class SQLiteDB(BaseDB[LocalDBConfig]):
+        """SQLite backend implementation for local file databases.
+
+        Ensures the sqlite file exists and provides a session/engine for the
+        rest of the application.
+        """
 
     config: LocalDBConfig
     _valid_db_type: ClassVar[DatabaseType] = DatabaseType.SQLLITE
@@ -126,7 +139,10 @@ class SQLiteDB(BaseDB[LocalDBConfig]):
 
 
 class PostgresDB(BaseDB[ServerDBConfig]):
-    """..."""
+    """Postgres backend implementation that verifies connectivity.
+
+    Attempts a simple query to confirm the server is reachable.
+    """
 
     config: ServerDBConfig
     _valid_db_type: ClassVar[DatabaseType] = DatabaseType.POSTGRESQL
@@ -144,7 +160,10 @@ class PostgresDB(BaseDB[ServerDBConfig]):
 
 
 def db_factory(config: BaseDBConfig) -> type[BaseDB]:
-    """..."""
+    """Return a configured `BaseDB` subclass for the given config.
+
+    Chooses a concrete backend based on the provided `BaseDBConfig` type.
+    """
     if isinstance(config, LocalDBConfig):
         return SQLiteDB.setup(config)
 

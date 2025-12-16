@@ -43,7 +43,7 @@ class BaseTable(DeclarativeBase):
     )
 
     def to_dict(self) -> dict[str, Any]:
-        """..."""
+        """Return a shallow dict of public ORM attributes for the instance."""
         return {
             key: value
             for key, value in self.__dict__.items()
@@ -104,7 +104,10 @@ class BaseModel(ABC):
     @classmethod
     @abstractmethod
     def from_dict(cls, data: dict[str, Any]) -> "BaseModel":
-        """..."""
+        """Construct and return a dataclass model from a dictionary.
+
+        Must be implemented by concrete model classes.
+        """
 
 
 @dataclass
@@ -117,7 +120,10 @@ class User(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "User":
-        """..."""
+        """Create a `User` dataclass from a mapping of attributes.
+
+        Expects `name` and `hashed_password` keys; other fields are optional.
+        """
         return cls(
             name=data["name"],
             id=data.get("id"),
@@ -138,7 +144,7 @@ class Task(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Task":
-        """..."""
+        """Create a `Task` dataclass from a mapping of attributes."""
         return cls(
             name=data["name"],
             id=data.get("id"),
