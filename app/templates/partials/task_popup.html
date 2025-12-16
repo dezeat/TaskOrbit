@@ -1,23 +1,51 @@
-<!-- task_popup.html -->
 {% if show_popup %}
-<div id="task-popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+<div id="task-popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index: 50;">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h2 class="text-2xl font-bold mb-4">Add New Task</h2>
-        <form hx-post="/add_task" hx-target="#task-popup" hx-swap="innerHTML" class="space-y-4">
+        <h2 class="text-2xl font-bold mb-4">
+            {% if task %}Edit Task{% else %}Add New Task{% endif %}
+        </h2>
+        
+        <form 
+            hx-post="{% if task %}/edit_task/{{ task.id }}{% else %}/add_task{% endif %}" 
+            hx-target="#task-popup" 
+            hx-swap="outerHTML" 
+            class="space-y-4"
+        >
             <div>
                 <label for="name" class="block font-medium">Title</label>
-                <input type="text" id="name" name="name" class="w-full p-2 border rounded-lg" required>
+                <input 
+                    type="text" 
+                    id="name" 
+                    name="name" 
+                    class="w-full p-2 border rounded-lg" 
+                    value="{{ task.name if task else '' }}" 
+                    required
+                >
             </div>
             <div>
                 <label for="description" class="block font-medium">Description</label>
-                <textarea id="description" name="description" class="w-full p-2 border rounded-lg" required></textarea>
+                <textarea 
+                    id="description" 
+                    name="description" 
+                    class="w-full p-2 border rounded-lg" 
+                    required
+                >{{ task.description if task else '' }}</textarea>
             </div>
             <div class="flex justify-end space-x-4">
-                <button type="button" class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300" hx-get="/close_add_task" hx-target="#task-popup" hx-swap="outerHTML">
+                <button 
+                    type="button" 
+                    class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300" 
+                    hx-get="/close_add_task" 
+                    hx-target="#task-popup" 
+                    hx-swap="outerHTML"
+                >
                     Cancel
                 </button>
-                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
-                    Add Task
+                <button 
+                    type="submit" 
+                    class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                >
+                    {% if task %}Save Changes{% else %}Add Task{% endif %}
                 </button>
             </div>
         </form>

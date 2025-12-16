@@ -19,8 +19,9 @@ from app.utils.exceptions import DBConfigError
 class DatabaseType(StrEnum):
     """Enum for different database types."""
 
-    SQLLITE = "sqlite"
+    SQLITE = "sqlite"
     POSTGRESQL = "postgresql"
+    MYSQL = "mysql"
 
 
 @dataclass
@@ -28,16 +29,16 @@ class BaseDBConfig:
     """Base class for database configuration.
 
     Attributes:
-        _type (str): The type of the database.
-        url (str): The URL for the database connection.
+        type (str): The type of the database.
+        host (str): The host/path.
         name (str): The name of the database.
-        possible_types (ClassVar[list[DatabaseType]]): Possible types for db-configs.
-        _required_fields (ClassVar[list[str]]): Required fields for db-configs.
+        echo (bool): Whether to log SQL statements (SQLAlchemy Echo).
     """
 
     type: str
     host: str
     name: str
+    echo: bool  # Added echo field
     possible_types: ClassVar[list[DatabaseType]]
     _required_fields: ClassVar[list[str]]
 
@@ -48,28 +49,13 @@ class BaseDBConfig:
 
     @classmethod
     def from_dict(cls, config_dict: dict[str, str]) -> "BaseDBConfig":
-        """Create a database configuration instance from a dictionary.
-
-        Args:
-            config_dict (dict[str, str]): The database configuration dictionary.
-
-        Returns:
-            BaseDBConfig: An instance of the created database configuration.
-        """
+        """Create a database configuration instance from a dictionary."""
         return cls(**config_dict)
 
     @classmethod
     @model_validator(mode="before")
     def _validate_required_fields(cls, db_config: dict[str, str]) -> dict[str, str]:
-        """Validate that all required fields are present in the given configuration.
-
-        Args:
-            cls: The class being validated.
-            db_config (dict[str, str]): The database configuration dictionary.
-
-        Returns:
-            dict[str, str]: The validated configuration dictionary.
-        """
+        """Validate that all required fields are present in the given configuration."""
         missing_fields = [
             field for field in cls._required_fields if field not in db_config
         ]
@@ -80,15 +66,7 @@ class BaseDBConfig:
 
     @classmethod
     def _validate_int_field(cls, v: str) -> str:
-        """Validate that a given value is a valid integer.
-
-        Args:
-            cls: The class being validated.
-            v (str): The value to validate.
-
-        Returns:
-            str: The validated integer value as a string.
-        """
+        """Validate that a given value is a valid integer."""
         if not v:
             msg = f"Integer field {v} cannot be empty."
             raise DBConfigError(msg)
@@ -101,15 +79,7 @@ class BaseDBConfig:
 
     @classmethod
     def _validate_str_field(cls, v: str) -> str:
-        """Validate that a given value is a valid string.
-
-        Args:
-            cls: The class being validated.
-            v (str): The value to validate.
-
-        Returns:
-            str: The validated string value.
-        """
+        """Validate that a given value is a valid string."""
         if not v:
             msg = f"String field {v} cannot be empty."
             raise DBConfigError(msg)
@@ -123,11 +93,7 @@ class BaseDBConfig:
     @classmethod
     @abstractmethod
     def _validate_str_fields(cls, v: str) -> str:
-        """Validate string fields for the concrete DB config class.
-
-        Implementations should call shared validators and raise
-        `DBConfigError` for invalid values.
-        """
+        """Validate string fields for the concrete DB config class."""
 
     @property
     @abstractmethod
@@ -137,48 +103,27 @@ class BaseDBConfig:
 
 @dataclass
 class LocalDBConfig(BaseDBConfig):
-    """Configuration for local database connections.
+    """Configuration for local database connections."""
 
-    Attributes:
-        possible_types (ClassVar[list[DatabaseType]]): Possible types for db-configs.
-        _required_fields (ClassVar[list[str]]): Required fields for local-db-configs.
-    """
-
-    possible_types: ClassVar[list[DatabaseType]] = [DatabaseType.SQLLITE]
-    _required_fields: ClassVar[list[str]] = ["type", "url", "name"]
+    possible_types: ClassVar[list[DatabaseType]] = [DatabaseType.SQLITE]
+    _required_fields: ClassVar[list[str]] = ["type", "host", "name"]
 
     @field_validator("type", "url", "name", mode="before")
     @classmethod
     def _validate_str_fields(cls, v: str) -> str:
-        """Validate string fields for local database configuration.
-
-        Args:
-            cls: The class being validated.
-            v (str): The value to validate.
-
-        Returns:
-            str: The validated string value.
-        """
+        """Validate string fields for local database configuration."""
         return cls._validate_str_field(v)
 
     @property
     def url(self) -> str:
         """Return the SQLite connection URL for a local DB config."""
-        return f"sqlite://{self.host}/{self.name}"
+        path = Path(self.host) / self.name
+        return f"sqlite:///{path.as_posix()}"
 
 
 @dataclass
 class ServerDBConfig(BaseDBConfig):
-    """Configuration for server-based database connections.
-
-    Attributes:
-        user (str): The username for database authentication.
-        pw (str): The password for database authentication.
-        port (int): The port number for the database connection.
-        driver (str): The database driver to use.
-        possible_types (ClassVar[list[DatabaseType]]): Possible types for db-configs.
-        _required_fields (ClassVar[list[str]]): Required fields for server-db-configs
-    """
+    """Configuration for server-based database connections."""
 
     user: str
     pw: str
@@ -202,29 +147,13 @@ class ServerDBConfig(BaseDBConfig):
     @field_validator("type", "name", "url", "user", "pw", "driver", mode="before")
     @classmethod
     def _validate_str_fields(cls, v: str) -> str:
-        """Validate string fields for server database configuration.
-
-        Args:
-            cls: The class being validated.
-            v (str): The value to validate.
-
-        Returns:
-            str: The validated string value.
-        """
+        """Validate string fields for server database configuration."""
         return cls._validate_str_field(v)
 
     @field_validator("port", mode="before")
     @classmethod
     def _validate_int_fields(cls, v: str) -> str:
-        """Validate the port field for server database configuration.
-
-        Args:
-            cls: The class being validated.
-            v (str): The value to validate.
-
-        Returns:
-            str: The validated port value as a string.
-        """
+        """Validate the port field for server database configuration."""
         return cls._validate_int_field(v)
 
     @property
@@ -238,43 +167,35 @@ class DBConfigFactory:
 
     @classmethod
     def _resolve_db_config(cls, config_dict: dict[str, str]) -> BaseDBConfig:
-        """Resolve and create db configuration instance based on provided dictionary.
+        """Resolve and create db configuration instance based on provided dictionary."""
+        db_type_str = config_dict.get("type")
+        if not db_type_str:
+            raise DBConfigError("DB-Type must be provided.")
 
-        Args:
-            cls: The class being validated.
-            config_dict (dict[str, str]): The database configuration dictionary.
+        # --- FIX: Inject default echo=False if not present ---
+        if "echo" not in config_dict:
+            config_dict["echo"] = False
+        # ----------------------------------------------------
 
-        Returns:
-            BaseDBConfig: An instance of the appropriate database configuration class.
-        """
-        db_type = config_dict.get("type")
-        if not db_type:
-            msg = "DB-Type must be provided."
+        try:
+            db_type = DatabaseType(db_type_str)
+        except ValueError:
+            possible_types = (
+                LocalDBConfig.possible_types + ServerDBConfig.possible_types
+            )
+            msg = f"Config type must be one of: {', '.join(t.value for t in possible_types)}"
             raise DBConfigError(msg)
 
         if db_type in LocalDBConfig.possible_types:
             return LocalDBConfig.from_dict(config_dict)
 
-        elif db_type in ServerDBConfig.possible_types:  # noqa: RET505
+        if db_type in ServerDBConfig.possible_types:
             return ServerDBConfig.from_dict(config_dict)
 
-        else:
-            possible_types = (
-                LocalDBConfig.possible_types + ServerDBConfig.possible_types
-            )
-            msg = f"Config type must be of {', '.join(
-                db_type.value for db_type in possible_types)}"
-            raise DBConfigError(msg)
+        raise DBConfigError(f"Unsupported DB type: {db_type.value}")
 
     def from_filepath(self, filepath: Path) -> BaseDBConfig:
-        """Load database configuration from a YAML file.
-
-        Args:
-            filepath (Path): The path to the YAML configuration file.
-
-        Returns:
-            BaseDBConfig: An instance of the loaded database configuration.
-        """
+        """Load database configuration from a YAML file."""
         with filepath.open() as file:
             db_config = yaml.safe_load(file)
 

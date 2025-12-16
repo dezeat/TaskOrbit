@@ -9,7 +9,7 @@ from uuid import UUID
 from flask import Flask, Response, g, make_response, render_template, request, session
 from sqlalchemy.exc import IntegrityError
 
-from app.utils.db.crud import bulk_insert, delete_where, fetch_where
+from app.utils.db.crud import bulk_insert, delete_where, fetch_where, update_where
 from app.utils.db.database import BaseDB
 from app.utils.db.models import Task, TaskTable, UserTable
 from app.utils.logger import logger
@@ -99,6 +99,54 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
         delete_where(g.db_session, TaskTable, match_col={"id": task_uid})
 
         response = make_response("", 204)
+        response.headers["HX-Trigger"] = "newTask"
+
+        return response
+
+    @app.route("/show_edit_task/<task_id>", methods=["GET"])
+    def show_edit_task(task_id: str) -> str:
+        """Fetch the specific task and open the popup in 'Edit' mode."""
+        task_uid = UUID(task_id)
+
+        # Fetch the existing task to pre-fill the form
+        tasks = fetch_where(
+            session=g.db_session, table=TaskTable, filter_map={"id": [task_uid]}
+        )
+
+        if not tasks:
+            # Handle edge case where task isn't found
+            return "", 404
+
+        # Render the same popup, but pass the 'task' object
+        return render_template(
+            "partials/task_popup.html", show_popup=True, task=tasks[0]
+        )
+
+    @app.route("/edit_task/<task_id>", methods=["POST"])
+    def edit_task(task_id: str) -> Response:
+        """Process the update and close the popup."""
+        task_uid = UUID(task_id)
+
+        # Prepare the update data
+        updates = {
+            "name": request.form.get("name"),
+            "description": request.form.get("description"),
+        }
+
+        # Perform the update
+        update_where(
+            session=g.db_session,
+            table=TaskTable,
+            match_cols={"id": task_uid},
+            updates=updates,
+        )
+
+        # Close the popup
+        response = make_response(
+            render_template("partials/task_popup.html", show_popup=False)
+        )
+
+        # Trigger 'newTask' to reload the list via HTMX
         response.headers["HX-Trigger"] = "newTask"
 
         return response

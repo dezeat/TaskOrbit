@@ -1,3 +1,4 @@
 type: sqlite
-host: /app
+host: app
 name: default_sqlite.db
+echo: false  

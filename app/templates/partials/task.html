@@ -1,24 +1,24 @@
 <div id="task-{{ task.id }}" class="bg-white p-4 rounded-lg shadow mb-4 flex items-center group hover:bg-gray-50 transition-colors duration-200">
-    <!-- Content Section -->
     <div class="flex-grow pr-4">
         <h2 class="text font-semibold">{{ task.name }}</h2>
         <p class="text-gray-400">{{ task.description }}</p>
     </div>
     
-    <!-- Actions Section -->
     <div class="flex items-center space-x-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        
         <button 
             class="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
-            hx-get="/edit-task/{{ task.id }}"
-            hx-target="#task-{{ task.id }}"
-            hx-swap="outerHTML"
-            hx-trigger="click">
+            hx-get="/show_edit_task/{{ task.id }}"
+            hx-target="#task-popup"
+            hx-swap="outerHTML">
             <img src="/static/icons/pencil.png" alt="Edit" class="w-5 h-5">
         </button>
+
         <button 
             class="p-2 rounded-full hover:bg-red-50 transition-colors duration-200"
-            hx-delete="/delete-task/{{ task.id }}"
-            hx-trigger="click">
+            hx-delete="/delete-task/{{ task.id }}" 
+            hx-target="#task-{{ task.id }}"
+            hx-swap="outerHTML">
             <img src="/static/icons/delete.png" alt="Delete" class="w-5 h-5">
         </button>
     </div>
