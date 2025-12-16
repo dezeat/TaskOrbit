@@ -1,4 +1,6 @@
 """Custom exceptions for TaskOrbit application."""
+
+
 class TaskOrbitError(Exception):
     """Base class for general exceptions in TaskOrbit app."""
 

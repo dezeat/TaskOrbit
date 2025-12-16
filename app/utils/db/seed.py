@@ -6,6 +6,7 @@ Run this independently of the main application server.
 
 import sys
 from pathlib import Path
+from typing import cast
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session
@@ -31,7 +32,7 @@ def db_session_handler(session: scoped_session[Session]) -> None:
         logger.error(f"Database error: {e}")
 
 
-def populate_db(db: BaseDB) -> None:
+def populate_db(db: type[BaseDB]) -> None:
     """Populate the database with an admin user and sample tasks."""
     logger.info("Starting database seeding...")
     session = db.session()
@@ -58,7 +59,7 @@ def populate_db(db: BaseDB) -> None:
         logger.error("Failed to retrieve admin user after creation.")
         return
 
-    uid_admin = admin_result[0].id
+    uid_admin = cast("User", admin_result[0]).id
 
     # 3. Create Task Data
     task_data = [

@@ -4,6 +4,8 @@ Provides `BaseDB` and concrete backends that manage engines, sessions and
 table creation for the application.
 """
 
+from __future__ import annotations
+
 import inspect as insp
 from abc import abstractmethod
 from pathlib import Path
@@ -34,7 +36,7 @@ class BaseDB(Generic[BaseDBConfigType]):
     config: BaseDBConfig
     _valid_db_type: ClassVar[DatabaseType]
     _engine: ClassVar[Engine | None] = None
-    _tables: ClassVar[dict[str, models.BaseTable] | None] = None
+    _tables: ClassVar[dict[str, type[models.BaseTable]] | None] = None
     _metadata: ClassVar[MetaData | None] = None
 
     @classmethod
@@ -46,15 +48,17 @@ class BaseDB(Generic[BaseDBConfigType]):
         return cls._engine
 
     @classmethod
-    def tables(cls) -> dict[str, models.BaseTable]:
+    def tables(cls) -> dict[str, type[models.BaseTable]]:
         """Discover and return a mapping of table name to ORM table class."""
         if cls._tables is None:
             classes = insp.getmembers(models, insp.isclass)
-            cls._tables = {
-                class_object.__tablename__: class_object
-                for class_name, class_object in classes
-                if "Table" in class_name and "Base" not in class_name
-            }
+            tbls: dict[str, type[models.BaseTable]] = {}
+            for class_name, class_object in classes:
+                if "Table" in class_name and "Base" not in class_name and isinstance(
+                    class_object, type
+                ):
+                    tbls[class_object.__tablename__] = class_object  # type: ignore[attr-defined]
+            cls._tables = tbls
         return cls._tables
 
     @classmethod
@@ -76,7 +80,7 @@ class BaseDB(Generic[BaseDBConfigType]):
         return inspector.has_table(table_name)
 
     @classmethod
-    def _create_table(cls, table_object: models.BaseTable) -> None:
+    def _create_table(cls, table_object: type[models.BaseTable]) -> None:
         """Create a single table object on the configured engine."""
         table_object.__table__.create(cls.engine())  # type: ignore  # noqa: PGH003
 
@@ -98,7 +102,7 @@ class BaseDB(Generic[BaseDBConfigType]):
         logger.info(f"All specified tables created in {cls.config.name}")
 
     @classmethod
-    def setup(cls, config: BaseDBConfigType) -> type["BaseDB"]:
+    def setup(cls, config: BaseDBConfigType) -> type[BaseDB]:
         """Template method for setting up the database."""
         cls.config = config
         cls._check_conn()
@@ -168,5 +172,5 @@ def db_factory(config: BaseDBConfig) -> type[BaseDB]:
             pass
 
     config_types = [cls.__name__ for cls in BaseDBConfig.__subclasses__()]
-    msg = "DBConfig needs to be of type " f"{" ,".join(config_types)}"
+    msg = "DBConfig needs to be of type " + ", ".join(config_types)
     raise DBSetupError(msg)

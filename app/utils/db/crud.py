@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import asdict, is_dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, delete, or_, select, update
 
@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     from app.utils.db.models import BaseTable
 
 
-def bulk_insert(session: Session, table: type[BaseTable], data: Sequence[Any]) -> None:
+def bulk_insert(
+    session: Session, table: type[BaseTable], data: Sequence[object]
+) -> None:
     """Insert dataclass instances or dicts into `table`.
 
     Accepts an iterable of dataclass instances (converted with `asdict`) or
@@ -32,7 +34,9 @@ def bulk_insert(session: Session, table: type[BaseTable], data: Sequence[Any]) -
     commit; transaction control is left to the caller.
     """
     for item in data:
-        if is_dataclass(item):
+        # `is_dataclass` can be True for both dataclass types and instances.
+        # Ensure we only call `asdict` on an instance.
+        if is_dataclass(item) and not isinstance(item, type):
             payload = asdict(item)
         elif isinstance(item, dict):
             payload = item
@@ -70,7 +74,7 @@ def fetch_all(session: Session, table: type[BaseTable]) -> list[BaseModel]:
 
 
 def fetch_where(
-    session: Session, table: type[BaseTable], filter_map: dict[str, Sequence[Any]]
+    session: Session, table: type[BaseTable], filter_map: dict[str, Sequence[object]]
 ) -> list[BaseModel]:
     """Select rows matching `filter_map` and return converted model objects.
 
@@ -113,8 +117,8 @@ def fetch_user_tasks(
 def update_where(
     session: Session,
     table: type[BaseTable],
-    match_cols: dict[str, Any],
-    updates: dict[str, Any],
+    match_cols: dict[str, object],
+    updates: dict[str, object],
 ) -> None:
     """Update rows in `table` matching `match_cols` with values from `updates`.
 
@@ -131,7 +135,7 @@ def update_where(
 
 
 def delete_where(
-    session: Session, table: type[BaseTable], match_col: dict[str, Any]
+    session: Session, table: type[BaseTable], match_col: dict[str, object]
 ) -> None:
     """Delete rows from `table` matching the provided column/value mapping.
 

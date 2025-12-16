@@ -7,7 +7,7 @@ factory to load those from YAML files.
 from abc import abstractmethod
 from enum import StrEnum
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 
 import yaml
 from pydantic import field_validator, model_validator
@@ -48,9 +48,42 @@ class BaseDBConfig:
         return next(db_type for db_type in DatabaseType if db_type.value == self.type)
 
     @classmethod
-    def from_dict(cls, config_dict: dict[str, str]) -> "BaseDBConfig":
+    def from_dict(cls, config_dict: dict[str, object]) -> "BaseDBConfig":
         """Create a database configuration instance from a dictionary."""
-        return cls(**config_dict)
+        coerced: dict[str, object] = {}
+
+        # Coerce values according to dataclass annotations, ignoring ClassVars
+        for name, ann in cls.__annotations__.items():
+            # Skip class variables
+            if name in ("possible_types", "_required_fields"):
+                continue
+
+            raw = config_dict.get(name)
+
+            if ann is bool:
+                if isinstance(raw, bool):
+                    coerced[name] = raw
+                elif isinstance(raw, str):
+                    coerced[name] = raw.lower() in ("1", "true", "yes", "on")
+                # If missing or wrong type, default to False
+                else:
+                    coerced[name] = False
+
+            elif ann is int:
+                if isinstance(raw, int):
+                    coerced[name] = raw
+                elif isinstance(raw, str) and raw.isdigit():
+                    coerced[name] = int(raw)
+                else:
+                    coerced[name] = 0
+
+            elif ann is str:
+                coerced[name] = str(raw) if raw is not None else ""
+
+        # Call the class as `Any` to avoid mypy constructor signature checks,
+        # then cast back to `BaseDBConfig` for the declared return type.
+        inst = cast(Any, cls)(**coerced)
+        return cast(BaseDBConfig, inst)
 
     @classmethod
     @model_validator(mode="before")
@@ -111,8 +144,9 @@ class LocalDBConfig(BaseDBConfig):
     @field_validator("type", "url", "name", mode="before")
     @classmethod
     def _validate_str_fields(cls, v: str) -> str:
-        """Validate string fields for local database configuration."""
-        return cls._validate_str_field(v)
+        if isinstance(v, str):
+            return cls._validate_str_field(v)
+        return v
 
     @property
     def url(self) -> str:
@@ -147,14 +181,16 @@ class ServerDBConfig(BaseDBConfig):
     @field_validator("type", "name", "url", "user", "pw", "driver", mode="before")
     @classmethod
     def _validate_str_fields(cls, v: str) -> str:
-        """Validate string fields for server database configuration."""
-        return cls._validate_str_field(v)
+        if isinstance(v, str):
+            return cls._validate_str_field(v)
+        return v
 
     @field_validator("port", mode="before")
     @classmethod
     def _validate_int_fields(cls, v: str) -> str:
-        """Validate the port field for server database configuration."""
-        return cls._validate_int_field(v)
+        if isinstance(v, str):
+            return cls._validate_int_field(v)
+        return v
 
     @property
     def url(self) -> str:
@@ -166,16 +202,22 @@ class DBConfigFactory:
     """Factory class for creating database configuration instances."""
 
     @classmethod
-    def _resolve_db_config(cls, config_dict: dict[str, str]) -> BaseDBConfig:
+    def _resolve_db_config(cls, config_dict: dict[str, object]) -> BaseDBConfig:
         """Resolve and create db configuration instance based on provided dictionary."""
         db_type_str = config_dict.get("type")
         if not db_type_str:
             msg = "DB-Type must be provided."
             raise DBConfigError(msg)
+        if not isinstance(db_type_str, str):
+            db_type_str = str(db_type_str)
+            config_dict["type"] = db_type_str
 
         # --- FIX: Inject default echo=False if not present ---
         if "echo" not in config_dict:
             config_dict["echo"] = False
+        elif isinstance(config_dict["echo"], str):
+            val = config_dict["echo"].lower()
+            config_dict["echo"] = val in ("1", "true", "yes", "on")
         # ----------------------------------------------------
 
         try:
@@ -203,5 +245,5 @@ class DBConfigFactory:
         """Load database configuration from a YAML file."""
         with filepath.open() as file:
             db_config = yaml.safe_load(file)
-
-        return self._resolve_db_config(db_config)
+        # Ensure the config dict is typed as dict[str, object]
+        return self._resolve_db_config(dict(db_config))

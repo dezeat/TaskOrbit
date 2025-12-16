@@ -1,13 +1,14 @@
 """HTTP routes for the TaskOrbit UI.
 
 This module defines a small Flask `Blueprint` that exposes the web
-endpoints used by the demo UI. Handlers are intentionally thin and rely
+endpoints used by the UI. Handlers are intentionally thin and rely
 on the application's CRUD helpers and a per-request DB session on
 ``flask.g``.
 """
 
 from datetime import datetime, timezone
 from functools import wraps
+from typing import Callable, cast
 from uuid import UUID
 
 from flask import (
@@ -32,7 +33,8 @@ from app.utils.db.crud import (
 from app.utils.db.crud import (
     search_tasks as crud_search_tasks,
 )
-from app.utils.db.models import Task, TaskTable, UserTable
+from app.utils.db.models import Task, TaskTable, User, UserTable
+from app.utils.logger import logger
 
 bp = Blueprint("main", __name__)
 
@@ -46,30 +48,19 @@ def _handle_unauthorized() -> Response:
     return redirect(url_for("main.login"))
 
 
-def login_required(f):
-    """Decorator to require login and validate session integrity."""
 
+def login_required(f: Callable[..., Response | str]) -> Callable[..., Response | str]:
+    """Decorator to require login and validate session integrity."""
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: object, **kwargs: object) -> Response | str:
         if "uid" not in session:
             return _handle_unauthorized()
-
         try:
-            users = fetch_where(
-                session=g.db_session,
-                table=UserTable,
-                filter_map={"id": [session["uid"]]},
-            )
-            if not users:
-                session.clear()
-                return _handle_unauthorized()
-
-        except Exception:
+            return f(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Login check failed: %s", exc)
             session.clear()
-            return _handle_unauthorized()
-
-        return f(*args, **kwargs)
-
+            raise
     return decorated_function
 
 
@@ -88,7 +79,7 @@ def login() -> Response:
     if not users:
         return render_template("login.html", error="User not found")
 
-    user = users[0]
+    user = cast(User, users[0])
     session["uid"] = user.id
 
     return redirect(url_for("main.home"))
@@ -103,7 +94,7 @@ def logout() -> Response:
 
 @bp.route("/", methods=["GET"])
 @login_required
-def home() -> str:
+def home() -> Response | str:
     """Render the dashboard for the authenticated user."""
     status = request.args.get("status", "active")
     is_completed = status == "done"
@@ -117,7 +108,7 @@ def home() -> str:
 
 @bp.route("/task_list", methods=["GET"])
 @login_required
-def task_list() -> str:
+def task_list() -> Response | str:
     """Return the tasks list partial for the requested status."""
     status = request.args.get("status", "active")
     is_completed = status == "done"
@@ -135,7 +126,7 @@ def toggle_task(task_id: str) -> Response:
     """Toggle a task's completion timestamp and trigger a client reload."""
     task_uid = UUID(task_id)
 
-    task = fetch_where(g.db_session, TaskTable, {"id": [task_uid]})[0]
+    task = cast(Task, fetch_where(g.db_session, TaskTable, {"id": [task_uid]})[0])
 
     new_ts = datetime.now(timezone.utc) if task.ts_acomplished is None else None
 
@@ -153,7 +144,7 @@ def toggle_task(task_id: str) -> Response:
 
 @bp.route("/search_tasks", methods=["GET"])
 @login_required
-def search_tasks() -> str:
+def search_tasks() -> Response | str:
     """Search tasks by text and return the task list partial."""
     search_string = request.args.get("search")
 
@@ -182,7 +173,7 @@ def add_task() -> Response:
     """Create a new task from form data and trigger list refresh."""
     task = Task(
         user_id=session["uid"],
-        name=request.form.get("name"),
+        name=request.form.get("name") or "",
         description=request.form.get("description"),
     )
 
@@ -218,7 +209,7 @@ def delete_task(task_id: str) -> Response:
 
 @bp.route("/show_edit_task/<task_id>", methods=["GET"])
 @login_required
-def show_edit_task(task_id: str) -> str:
+def show_edit_task(task_id: str) -> Response | str:
     """Render the edit popup pre-filled with the selected task."""
     task_uid = UUID(task_id)
 
@@ -239,7 +230,7 @@ def edit_task(task_id: str) -> Response:
     task_uid = UUID(task_id)
 
     updates = {
-        "name": request.form.get("name"),
+        "name": request.form.get("name") or "",
         "description": request.form.get("description"),
     }
 

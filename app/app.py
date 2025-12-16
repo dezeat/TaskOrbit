@@ -4,12 +4,18 @@ Exports `create_app` which wires DB session lifecycle hooks and the
 minimal HTTP routes used by the demo application.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from flask import Flask, g
 from sqlalchemy.exc import IntegrityError
 
 from app.routes import bp as main_bp
-from app.utils.db.database import BaseDB
 from app.utils.logger import logger
+
+if TYPE_CHECKING:
+    from app.utils.db.database import BaseDB
 
 
 def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
@@ -40,7 +46,7 @@ def _start_session_management(app: Flask, db: BaseDB) -> None:
         g.db_session = db.session()
 
     @app.teardown_request
-    def teardown_request(exception: Exception) -> None:
+    def teardown_request(exception: BaseException | None) -> None:
         """Remove the session after the request is finished."""
         if exception:
             g.db_session.rollback()
