@@ -148,11 +148,11 @@ class PostgresDB(BaseDB[ServerDBConfig]):
         """Checks if the database is reachable by executing a simple query."""
         try:
             cls.engine().connect().execute(text("SELECT 1"))
-            return True
-
         except SQLAlchemyError as e:
             msg = f"Database connection failed: {e}"
             raise DBSetupError(msg) from e
+        else:
+            return True
 
 
 def db_factory(config: BaseDBConfig) -> type[BaseDB]:

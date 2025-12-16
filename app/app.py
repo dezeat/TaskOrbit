@@ -4,18 +4,25 @@ Exports `create_app` which wires DB session lifecycle hooks and the
 minimal HTTP routes used by the demo application.
 """
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from flask import Flask, Response, g, make_response, render_template, request, session
 from sqlalchemy.exc import IntegrityError
 
-from app.utils.db.crud import bulk_insert, delete_where, fetch_where, update_where
+from app.utils.db.crud import (
+    bulk_insert,
+    delete_where,
+    fetch_user_tasks,
+    fetch_where,
+    update_where,
+)
 from app.utils.db.database import BaseDB
 from app.utils.db.models import Task, TaskTable, UserTable
 from app.utils.logger import logger
 
 
-def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
+def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:  # noqa: C901
     """Create and configure the Flask application instance.
 
     Registers request lifecycle handlers that provide a scoped DB session
@@ -23,7 +30,7 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
     """
     app = Flask(__name__, template_folder=template_folder)
 
-    start_session_management(app, db)
+    _start_session_management(app, db)
 
     @app.route("/", methods=["GET"])
     def home() -> str:
@@ -37,24 +44,52 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
         )
         session["uid"] = result[0].id
 
-        # Load all Tasks of the User
-        tasks = fetch_where(
-            session=g.db_session,
-            table=TaskTable,
-            filter_map={"user_id": [session["uid"]]},
+        status = request.args.get("status", "active")
+
+        # Re-use your CRUD logic to fetch initial tasks
+        is_completed = status == "done"
+        tasks = fetch_user_tasks(
+            session=g.db_session, user_id=session["uid"], completed=is_completed
         )
 
-        return render_template("index.html", tasks=tasks)
+        return render_template("index.html", tasks=tasks, current_tab=status)
 
     @app.route("/task_list", methods=["GET"])
     def task_list() -> str:
-        tasks = fetch_where(
-            session=g.db_session,
-            table=TaskTable,
-            filter_map={"user_id": [session["uid"]]},
+        # Get status from query param, default to 'active'
+        status = request.args.get("status", "active")
+        is_completed = status == "done"
+
+        tasks = fetch_user_tasks(
+            session=g.db_session, user_id=session["uid"], completed=is_completed
         )
 
-        return render_template("/partials/task_list.html", tasks=tasks)
+        # Pass 'current_tab' to the template so we can highlight the correct button
+        return render_template(
+            "/partials/task_list.html", tasks=tasks, current_tab=status
+        )
+
+    @app.route("/toggle_task/<task_id>", methods=["POST"])
+    def toggle_task(task_id: str) -> Response:
+        task_uid = UUID(task_id)
+
+        # Get current state
+        task = fetch_where(g.db_session, TaskTable, {"id": [task_uid]})[0]
+
+        new_ts = datetime.now(timezone.utc) if task.ts_acomplished is None else None
+
+        update_where(
+            g.db_session,
+            TaskTable,
+            match_cols={"id": task_uid},
+            updates={"ts_acomplished": new_ts},
+        )
+
+        # 4. Trigger reload.
+        # We return 204 No Content because the list will auto-reload via the trigger.
+        response = make_response("", 204)
+        response.headers["HX-Trigger"] = "newTask"
+        return response
 
     @app.route("/search_tasks", methods=["GET"])
     def search_tasks() -> str:
@@ -154,7 +189,7 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
     return app
 
 
-def start_session_management(app: Flask, db: BaseDB) -> None:
+def _start_session_management(app: Flask, db: BaseDB) -> None:
     """Register hooks to create and teardown DB sessions per request.
 
     Adds `before_request` and `teardown_request` handlers that manage

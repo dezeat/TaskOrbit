@@ -180,7 +180,7 @@ class DBConfigFactory:
 
         try:
             db_type = DatabaseType(db_type_str)
-        except ValueError:
+        except ValueError as e:
             possible_types = (
                 LocalDBConfig.possible_types + ServerDBConfig.possible_types
             )
@@ -188,7 +188,7 @@ class DBConfigFactory:
                 "Config type must be one of: "
                 f"{', '.join(t.value for t in possible_types)}"
             )
-            raise DBConfigError(msg)
+            raise DBConfigError(msg) from e
 
         if db_type in LocalDBConfig.possible_types:
             return LocalDBConfig.from_dict(config_dict)

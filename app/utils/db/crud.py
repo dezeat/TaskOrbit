@@ -43,12 +43,6 @@ def bulk_insert(session: Session, table: type[BaseTable], data: Sequence[Any]) -
         session.add(table(**payload))
 
 
-def fetch_all(session: Session, table: type[BaseTable]) -> list[BaseModel]:
-    """Return all rows from `table` converted to application models."""
-    rows = session.execute(select(table)).scalars().all()
-    return serialize_output(rows)
-
-
 def search_tasks(
     session: Session, user_id: UUIDTYPE, search_string: str
 ) -> list[BaseModel]:
@@ -66,6 +60,11 @@ def search_tasks(
     )
 
     rows = session.execute(stmt).scalars().all()
+    return serialize_output(rows)
+
+def fetch_all(session: Session, table: type[BaseTable]) -> list[BaseModel]:
+    """Return all rows from `table` converted to application models."""
+    rows = session.execute(select(table)).scalars().all()
     return serialize_output(rows)
 
 
@@ -92,6 +91,21 @@ def fetch_where(
     rows = session.execute(stmt).scalars().all()
     return serialize_output(rows)
 
+def fetch_user_tasks(
+    session: Session, user_id: UUIDTYPE, completed: bool
+) -> list[BaseModel]:
+    """Fetch tasks based on completion status (ts_acomplished is None or Not None)."""
+    stmt = select(TaskTable).where(TaskTable.user_id == user_id)
+
+    if completed:
+        stmt = stmt.where(TaskTable.ts_acomplished.is_not(None))
+        stmt = stmt.order_by(TaskTable.ts_acomplished.desc())
+    else:
+        stmt = stmt.where(TaskTable.ts_acomplished.is_(None))
+        stmt = stmt.order_by(TaskTable.name.asc())
+
+    rows = session.execute(stmt).scalars().all()
+    return serialize_output(rows)
 
 def update_where(
     session: Session,

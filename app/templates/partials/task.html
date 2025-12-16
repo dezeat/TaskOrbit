@@ -1,11 +1,23 @@
 <div id="task-{{ task.id }}" class="bg-white p-4 rounded-lg shadow mb-4 flex items-center group hover:bg-gray-50 transition-colors duration-200">
+    
+    <div class="mr-4">
+        <input type="checkbox" 
+               class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+               {% if task.ts_acomplished %}checked{% endif %}
+               hx-post="/toggle_task/{{ task.id }}"
+               hx-trigger="change"
+               hx-swap="none"
+        >
+        </div>
+
     <div class="flex-grow pr-4">
-        <h2 class="text font-semibold">{{ task.name }}</h2>
-        <p class="text-gray-400">{{ task.description }}</p>
+        <h2 class="text font-semibold {% if task.ts_acomplished %}line-through text-gray-400{% endif %}">
+            {{ task.name }}
+        </h2>
+        <p class="text-gray-400 text-sm">{{ task.description }}</p>
     </div>
     
     <div class="flex items-center space-x-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        
         <button 
             class="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
             hx-get="/show_edit_task/{{ task.id }}"
@@ -13,7 +25,6 @@
             hx-swap="outerHTML">
             <img src="/static/icons/pencil.png" alt="Edit" class="w-5 h-5">
         </button>
-
         <button 
             class="p-2 rounded-full hover:bg-red-50 transition-colors duration-200"
             hx-delete="/delete-task/{{ task.id }}" 
