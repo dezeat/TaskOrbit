@@ -33,51 +33,5 @@
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Register</button>
       </div>
     </form>
-  </div>
-</div>
-
-<script>
-(async function(){
-  async function sha256hex(message) {
-    const enc = new TextEncoder();
-    const data = enc.encode(message);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    const bytes = new Uint8Array(hash);
-    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
-  const modal = document.getElementById('register-modal');
-  const closeBtn = document.getElementById('close-register');
-  const cancelBtn = document.getElementById('reg-cancel');
-  const form = document.getElementById('register-form');
-  const pwd = document.getElementById('reg-password');
-  const pwdConfirm = document.getElementById('reg-password-confirm');
-  const pwdHash = document.getElementById('reg-password-hash');
-
-  function close() { modal.classList.add('hidden'); }
-  function open() { modal.classList.remove('hidden'); }
-
-  if (closeBtn) closeBtn.addEventListener('click', close);
-  if (cancelBtn) cancelBtn.addEventListener('click', close);
-
-  if (form) {
-    form.addEventListener('submit', async function(e){
-      e.preventDefault();
-      if (!pwd.value || !pwdConfirm.value) return;
-      if (pwd.value !== pwdConfirm.value) {
-        alert('Passwords do not match');
-        return;
-      }
-      const h = await sha256hex(pwd.value);
-      pwdHash.value = h;
-      // Clear plain password inputs to avoid accidental sending
-      pwd.value = '';
-      pwdConfirm.value = '';
-      form.submit();
-    });
-  }
-
-  // Provide a global function to open the modal if needed
-  window.openRegisterModal = open;
-})();
-</script>
+      </div>
+    </div>

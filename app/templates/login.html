@@ -51,31 +51,7 @@
 
     {% include 'partials/register_popup.html' %}
 
-    <script>
-    async function sha256hex(message) {
-        const enc = new TextEncoder();
-        const data = enc.encode(message);
-        const hash = await crypto.subtle.digest('SHA-256', data);
-        const bytes = new Uint8Array(hash);
-        return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    document.querySelector('form[action="/login"]').addEventListener('submit', async function (e) {
-        const pwd = document.getElementById('password');
-        if (pwd && pwd.value) {
-            e.preventDefault();
-            const h = await sha256hex(pwd.value);
-            pwd.value = h;
-            this.submit();
-        }
-    });
-
-    // Open register modal
-    document.getElementById('open-register').addEventListener('click', function (ev) {
-        ev.preventDefault();
-        document.getElementById('register-modal').classList.remove('hidden');
-    });
-    </script>
+    <script src="/static/js/auth.js"></script>
 
 </body>
 </html>

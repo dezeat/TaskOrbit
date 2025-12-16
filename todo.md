@@ -50,11 +50,11 @@ This file tracks implementation tasks and their status. Sections are ordered by 
 
 ## 2. Immediate Priorities (Testing & CI)
 
-- [ ] Unit testing (priority)
-    - [ ] Config tests
-    - [ ] Database tests
-    - [ ] CRUD tests
-    - [ ] Add GitHub Actions pipeline to run tests
+- [x] Unit testing (priority)
+    - [x] Config tests
+    - [x] Database tests
+    - [x] CRUD tests
+    - [x] Add GitHub Actions pipeline to run tests
 
 - [ ] Containerize for deployment
     - [ ] Create `Dockerfile` for platform-agnostic image
@@ -65,13 +65,6 @@ This file tracks implementation tasks and their status. Sections are ordered by 
 
 ## 3. Feature Roadmap (In Implementation Order)
 
-### Phase 1: Database Migrations (Critical Foundation)
-*Must be done before modifying User or Task models further.*
-
-- [ ] **Setup Alembic**
-    - [ ] Initialize alembic in project root (`alembic init migrations`)
-    - [ ] Configure `env.py` to use your existing `BaseDB` engine and `SQLAlchemy` metadata
-    - [ ] Generate initial migration (baseline) for current `User` and `Task` tables
 
 ### Phase 2: Task Metadata Enhancements
 *Quick wins to make the app useful immediately.*
@@ -100,15 +93,15 @@ This file tracks implementation tasks and their status. Sections are ordered by 
     - [ ] Add `passlib[bcrypt]` for secure password hashing
     - [ ] Add `Flask-Login` for session management
 
-- [ ] **Implement backend endpoints**
-    - [ ] Create endpoints: `/login`, `/register`, `/logout`
-    - [ ] Create auth decorator to handle "Unauthorized" requests (Return HTTP 401 for API, Redirect for browser)
+- [x] **Implement backend endpoints**
+    - [x] Create endpoints: `/login`, `/register`, `/logout`
+    - [x] Create auth decorator to handle "Unauthorized" requests (Return HTTP 401 for API, Redirect for browser)
     - [ ] **HTMX Handling:** Middleware to trigger client-side redirect (`HX-Redirect`) on session expiry
 
-- [ ] **UI integration**
-    - [ ] Create Login/Register HTML templates
-    - [ ] Update "Add Task" and "Edit" to verify user session before action
-    - [ ] Add "Log Out" button in the header
+- [x] **UI integration**
+    - [x] Create Login/Register HTML templates
+    - [x] Update "Add Task" and "Edit" to verify user session before action
+    - [x] Add "Log Out" button in the header
 
 ### Phase 4: Advanced Search & Filtering
 *Leveraging the metadata created in Phase 2.*
