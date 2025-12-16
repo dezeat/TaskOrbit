@@ -154,4 +154,4 @@ class Task(BaseModel):
         )
 
 
-MODEL_MAP = {"UserTable": User, "TaskTable": Task}
+MODEL_MAP: dict[str, type[BaseModel]] = {"UserTable": User, "TaskTable": Task}

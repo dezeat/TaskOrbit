@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import asdict, is_dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, delete, or_, select, update
 
@@ -19,12 +19,16 @@ from app.utils.db.models import MODEL_MAP, BaseModel, TaskTable
 if TYPE_CHECKING:
     from uuid import UUID as UUIDTYPE
 
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Session, scoped_session
 
     from app.utils.db.models import BaseTable
 
 
-def bulk_insert(session: Session, table: type[BaseTable], data: Sequence[Any]) -> None:
+def bulk_insert(
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+    data: Sequence[object],
+) -> None:
     """Insert dataclass instances or dicts into `table`.
 
     Accepts an iterable of dataclass instances (converted with `asdict`) or
@@ -32,7 +36,9 @@ def bulk_insert(session: Session, table: type[BaseTable], data: Sequence[Any]) -
     commit; transaction control is left to the caller.
     """
     for item in data:
-        if is_dataclass(item):
+        # `is_dataclass` can be True for both dataclass types and instances.
+        # Ensure we only call `asdict` on an instance.
+        if is_dataclass(item) and not isinstance(item, type):
             payload = asdict(item)
         elif isinstance(item, dict):
             payload = item
@@ -44,7 +50,7 @@ def bulk_insert(session: Session, table: type[BaseTable], data: Sequence[Any]) -
 
 
 def search_tasks(
-    session: Session, user_id: UUIDTYPE, search_string: str
+    session: Session | scoped_session[Session], user_id: UUIDTYPE, search_string: str
 ) -> list[BaseModel]:
     """Return tasks for `user_id` that match `search_string` (case-insensitive).
 
@@ -62,14 +68,20 @@ def search_tasks(
     rows = session.execute(stmt).scalars().all()
     return serialize_output(rows)
 
-def fetch_all(session: Session, table: type[BaseTable]) -> list[BaseModel]:
+
+def fetch_all(
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+) -> list[BaseModel]:
     """Return all rows from `table` converted to application models."""
     rows = session.execute(select(table)).scalars().all()
     return serialize_output(rows)
 
 
 def fetch_where(
-    session: Session, table: type[BaseTable], filter_map: dict[str, Sequence[Any]]
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+    filter_map: dict[str, Sequence[object]],
 ) -> list[BaseModel]:
     """Select rows matching `filter_map` and return converted model objects.
 
@@ -91,8 +103,9 @@ def fetch_where(
     rows = session.execute(stmt).scalars().all()
     return serialize_output(rows)
 
+
 def fetch_user_tasks(
-    session: Session, user_id: UUIDTYPE, completed: bool
+    session: Session | scoped_session[Session], user_id: UUIDTYPE, *, completed: bool
 ) -> list[BaseModel]:
     """Fetch tasks based on completion status (ts_acomplished is None or Not None)."""
     stmt = select(TaskTable).where(TaskTable.user_id == user_id)
@@ -107,11 +120,12 @@ def fetch_user_tasks(
     rows = session.execute(stmt).scalars().all()
     return serialize_output(rows)
 
+
 def update_where(
-    session: Session,
+    session: Session | scoped_session[Session],
     table: type[BaseTable],
-    match_cols: dict[str, Any],
-    updates: dict[str, Any],
+    match_cols: dict[str, object],
+    updates: dict[str, object],
 ) -> None:
     """Update rows in `table` matching `match_cols` with values from `updates`.
 
@@ -128,7 +142,9 @@ def update_where(
 
 
 def delete_where(
-    session: Session, table: type[BaseTable], match_col: dict[str, Any]
+    session: Session | scoped_session[Session],
+    table: type[BaseTable],
+    match_col: dict[str, object],
 ) -> None:
     """Delete rows from `table` matching the provided column/value mapping.
 

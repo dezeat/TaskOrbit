@@ -7,12 +7,26 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.6/htmx.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="bg-gray-50 flex flex-col items-center min-h-screen py-8 font-sans text-gray-800">
 
     <div class="container max-w-md bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         
-        <h1 class="text-3xl font-bold text-center mb-6 tracking-tight">Task Orbit</h1>
-        
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-3xl font-bold tracking-tight text-gray-900">Task Orbit</h1>
+            
+            <a href="{{ url_for('main.logout') }}" 
+            class="text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors bg-white">
+                Log Out
+            </a>
+        </div>
+
+        <div class="mb-6 overflow-hidden rounded-xl border border-gray-100 shadow-sm">
+        <img src="{{ url_for('static', filename='images/task_orbit.png') }}" 
+             alt="Task Orbit Space Banner" 
+             class="w-full h-auto object-cover">
+        </div>
+
         <button class="w-full bg-blue-600 text-white font-medium py-3 rounded-lg mb-6 hover:bg-blue-700 active:bg-blue-800 transition-colors duration-200 shadow-sm flex items-center justify-center gap-2"
                 hx-get="/show_add_task" 
                 hx-target="#task-popup" 
@@ -35,14 +49,16 @@
                 </svg>
             </div>
             <input type="text" 
-                    id="search"
-                    name="search"
-                    placeholder="Search tasks..." 
-                    class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
-                    hx-get="/search_tasks" 
-                    hx-target="#task-list" 
-                    hx-swap="innerHTML" 
-                    hx-trigger="input delay:200ms">
+                id="search"
+                name="search" 
+                placeholder="Search tasks..." 
+                class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+                
+                hx-get="/search_tasks" 
+                hx-target="#task-list" 
+                hx-swap="innerHTML" 
+                hx-trigger="keyup changed delay:500ms, search"
+            >
         </div>
         
         <div id="main-container">

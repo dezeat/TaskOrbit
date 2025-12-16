@@ -4,8 +4,10 @@ This script populates the database with initial data (admin user, sample tasks).
 Run this independently of the main application server.
 """
 
+import hashlib
 import sys
 from pathlib import Path
+from typing import cast
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session
@@ -31,13 +33,18 @@ def db_session_handler(session: scoped_session[Session]) -> None:
         logger.error(f"Database error: {e}")
 
 
-def populate_db(db: BaseDB) -> None:
+def populate_db(db: type[BaseDB]) -> None:
     """Populate the database with an admin user and sample tasks."""
     logger.info("Starting database seeding...")
     session = db.session()
 
     # 1. Add Admin User
-    user_data = {"name": "admin", "hashed_password": "admin"}
+    # Passwords are stored as client-side SHA-256 hex digests.
+    # Hash the default admin password so login (which expects a hashed value)
+    # will work when the client sends the SHA-256 of 'admin'.
+    admin_plain = "admin"
+    admin_hashed = hashlib.sha256(admin_plain.encode("utf-8")).hexdigest()
+    user_data = {"name": "admin", "hashed_password": admin_hashed}
     user = User.from_dict(user_data)
 
     # Check if user exists first to reduce log noise (optional but clean)
@@ -58,7 +65,7 @@ def populate_db(db: BaseDB) -> None:
         logger.error("Failed to retrieve admin user after creation.")
         return
 
-    uid_admin = admin_result[0].id
+    uid_admin = cast("User", admin_result[0]).id
 
     # 3. Create Task Data
     task_data = [

@@ -1,56 +1,132 @@
-##Todo
+# Project Roadmap & TODOs
 
-- [x] Get DevContainers configured and running for fedora/wsl2
-    - [x] Make devcontainer work platform agnostic
-    - [x] Setup dependencies with poetry
-    - [x] Setup make and create makefile 
+This file tracks implementation tasks and their status. Sections are ordered by development flow: Setup → MVP → Core Features → Advanced Features.
 
-- [x] Make very, very basic poc
-    - [x] Understand how to return a basic html with flask
+---
+
+## 1. Completed Milestones
+
+### Dev Environment
+- [x] DevContainers configured and working (Fedora / WSL2)
+    - [x] Make devcontainer platform-agnostic
+    - [x] Setup dependencies with `poetry`
+    - [x] Setup `make` and create `Makefile`
+
+### Proof of Concept (POC)
+- [x] Basic Flask POC
+    - [x] Return a basic HTML page with Flask
     - [x] Draft first interface
-    - [x] Return basic text for tasks
+    - [x] Render basic task text
 
-- [x] Implement modular OOP DB MVP Code
-    - [x] Config for SQL-Alchemy
-        - [x] create from file, dict
-        - [x] validate
-    - [x] Simple SQLAlchemy- init script
-    - [x] Data-Classes with pydantic
-    - [x] SQL-Alchecmy Objects 
-    - [x] App specific CRUD functionality
-    - [x] Populate with test-data
+### Modular OOP DB MVP
+- [x] SQLAlchemy configuration and validation
+    - [x] Create config from file/dict
+    - [x] Validate config inputs
+- [x] SQLAlchemy initialization script
+- [x] Use `pydantic` dataclasses for domain models
+- [x] SQLAlchemy ORM models implemented
+- [x] Application-specific CRUD helpers
+- [x] Populate DB with seed/test data
 
-- [ ] Work on App / Frontend
-    - [ ] Conceptualize different parts of the FE
-    - [ ] Think about the routes and DB interactions it will have
-    - [ ] Make use of temlpates
-    - [ ] Use CRUD to display and manage task-app
+### Application / Frontend
+- [x] Frontend conceptualization and routes
+    - [x] Map routes to DB interactions
+    - [x] Use server-side templates
+    - [x] Use CRUD helpers to display/manage tasks
+    - [x] Implement "Active" vs "Accomplished" Tabs
+
+### Core Feature: Tasks (CRUD)
+- [x] Create and Delete tasks
+    - [x] Templates load and display tasks
+    - [x] Display user's tasks at session start (page refresh)
+    - [x] Add task popup for input
+    - [x] Delete button with hover UI, triggers DB delete and list refresh
+    - [x] Dynamic search using HTMX partials
+- [x] Edit tasks
+    - [x] Make task content editable in popup
+    - [x] Update task and refresh list (debounce/delay considered)
+
+---
+
+## 2. Immediate Priorities (Testing & CI)
+
+- [x] Unit testing (priority)
+    - [x] Config tests
+    - [x] Database tests
+    - [x] CRUD tests
+    - [x] Add GitHub Actions pipeline to run tests
+
+- [ ] Containerize for deployment
+    - [ ] Create `Dockerfile` for platform-agnostic image
+    - [ ] Verify network/port configuration for localhost
+    - [ ] Ensure Flask serves HTML correctly inside container
+
+---
+
+## 3. Feature Roadmap (In Implementation Order)
 
 
-- [x] Make it possible to Create and Delete a Task
-    - [x] Make Use of templates to load and display the tasks
-    - [x] Display all the tasks for the Users at the start of the session
-        - [x] Always get the tasks at page refresh
-    - [x] Make Add Task Clickable, Pop-up for all Input fields
-    - [x] Introduce Button on the Right of the Task Field for deletion
-        - [x] Make a new item tamplate which gets activated on mouse-hover, which shows deletion and update icon
-        - [x] When delete is clicked -> db- delete -> list-refresh
-    - [x] Make search dynamic, hx-tager=list, return a renderd version of the list
-    
- - [ ] Make tasks editable
-    - [ ] When edit is clicked -> make content editable -> when title is changed
-        - [ ] this might be tricky, as i have to update and then instantly refresh, maybe introdcue an delay to minimize db requests
+### Phase 2: Task Metadata Enhancements
+*Quick wins to make the app useful immediately.*
 
-- [ ] Unit Testing
-    - [ ] config
-    - [ ] database
-    - [ ] crud
-    - [ ] Build github actions pipeline with them
+- [ ] **Priorities**
+    - [ ] Add `priority` column to Task (Enum: HIGH, MEDIUM, LOW)
+    - [ ] Update UI: Add color-coded badges (Red/Orange/Green) or icons
+    - [ ] Update "Add/Edit Task" popup with Priority dropdown
 
+- [ ] **Due Dates & "Due Soon"**
+    - [ ] Add `due_date` column to Task (DateTime)
+    - [ ] Update UI: Show date next to task; highlight if overdue (red) or today (orange)
+    - [ ] Create backend filter for "Due Soon" (next 24-48 hours)
 
-- [ ] Package into a deployable container
-    - [ ] Setup a Dockerfile and configure it to be deployable in a platform agnostic way
-    - [ ] Get network/port config right for localhost
-    - [ ] Make it work with Flask, render text/html
+- [ ] **Tags (Labels)**
+    - [ ] Create `Tag` model (`id`, `name`, `color`)
+    - [ ] Create `TaskTag` association table (Many-to-Many)
+    - [ ] UI: Allow creating/selecting tags in Task Popup
+    - [ ] UI: Display pill-shaped tags on Task card
 
-    
+### Phase 3: User Authentication (Auth)
+*Securing the application.*
+
+- [ ] **Design data model**
+    - [ ] Update `User` table (via Alembic): Add `email`, `is_active`, `last_login_ts`
+    - [ ] Add `passlib[bcrypt]` for secure password hashing
+    - [ ] Add `Flask-Login` for session management
+
+- [x] **Implement backend endpoints**
+    - [x] Create endpoints: `/login`, `/register`, `/logout`
+    - [x] Create auth decorator to handle "Unauthorized" requests (Return HTTP 401 for API, Redirect for browser)
+    - [ ] **HTMX Handling:** Middleware to trigger client-side redirect (`HX-Redirect`) on session expiry
+
+- [x] **UI integration**
+    - [x] Create Login/Register HTML templates
+    - [x] Update "Add Task" and "Edit" to verify user session before action
+    - [x] Add "Log Out" button in the header
+
+### Phase 4: Advanced Search & Filtering
+*Leveraging the metadata created in Phase 2.*
+
+- [ ] **Refine Search**
+    - [ ] Update `search_tasks` in CRUD to support multiple parameters (not just text string)
+    - [ ] Enable searching by Tag (e.g., "tag:work")
+
+- [ ] **Filter UI Implementation**
+    - [ ] Add Filter Controls to the Dashboard (Dropdown or Sidebar)
+        - [ ] Filter by: Priority (High/Med/Low)
+        - [ ] Filter by: Due Date (Overdue, Today, This Week)
+        - [ ] Filter by: Tags
+    - [ ] Connect filters to HTMX task list reload (`hx-include` parameters)
+
+### Phase 5: Support Multiple Task Lists
+*Adding organizational hierarchy.*
+
+- [ ] **Design schema and relationships**
+    - [ ] Add `TaskList` table (name, owner_id)
+    - [ ] Migration: Add `tasklist_id` FK to `Task` table
+    - [ ] UI: Add Sidebar or Dropdown to switch current Task List
+
+### Phase 6: Production Hardening
+
+- [ ] **Pluginable DB Backends**
+    - [ ] Define interface for DB backends
+    - [ ] Document developer workflow for switching between SQLite (Dev) and Postgres (Prod)
