@@ -1,4 +1,3 @@
-
 """Tests for database configuration resolution."""
 
 import pytest
@@ -31,13 +30,11 @@ def test_server_dbconfig_url(fix_server_cfg: dict[str, object]) -> None:
 
 def test_missing_type_raises() -> None:
     """Missing type in config raises DBConfigError."""
-    # Act / Assert
     with pytest.raises(DBConfigError):
         DBConfigFactory._resolve_db_config({})
 
 
 def test_invalid_type_raises() -> None:
     """Invalid type in config raises DBConfigError."""
-    # Act / Assert
     with pytest.raises(DBConfigError):
         DBConfigFactory._resolve_db_config({"type": "unsupported"})

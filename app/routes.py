@@ -21,6 +21,7 @@ from flask import (
     session,
     url_for,
 )
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.wrappers import Response as WResponse
 
 from app.utils.db.crud import (
@@ -48,19 +49,32 @@ def _handle_unauthorized() -> WResponse:
     return redirect(url_for("main.login"))
 
 
-
 def login_required(f: Callable[..., WResponse | str]) -> Callable[..., WResponse | str]:
     """Decorator to require login and validate session integrity."""
+
     @wraps(f)
     def decorated_function(*args: object, **kwargs: object) -> WResponse | str:
         if "uid" not in session:
             return _handle_unauthorized()
+
+        # Validate that the session `uid` maps to a real user in the DB.
         try:
-            return f(*args, **kwargs)
-        except Exception as exc:
-            logger.exception("Login check failed: %s", exc)
+            users = fetch_where(
+                session=g.db_session,
+                table=UserTable,
+                filter_map={"id": [session["uid"]]},
+            )
+        except (SQLAlchemyError, AttributeError, KeyError, TypeError) as exc:
+            logger.exception("Error validating session user: %s", exc)
             session.clear()
-            raise
+            return _handle_unauthorized()
+
+        if not users:
+            session.clear()
+            return _handle_unauthorized()
+
+        return f(*args, **kwargs)
+
     return decorated_function
 
 

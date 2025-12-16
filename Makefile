@@ -6,47 +6,70 @@ HOST ?= 127.0.0.1
 PORT ?= 5000
 DB_PATH := $(shell grep "host:" $(DB_CONFIG) | awk '{print $$2}')/$(shell grep "name:" $(DB_CONFIG) | awk '{print $$2}')
 
-.PHONY: help setup start dev seed reset rebuild launch format lint type test check clean checkfix
+.PHONY: help setup start dev seed reset rebuild launch format ruff-check lint type test check clean checkfix
 
-help: ## Show this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+## Show this help message
+help:
+	@awk 'BEGIN {FS = ":"} /^## /{desc=substr($$0,4); getline; if ($$0 ~ /^[a-zA-Z0-9_-]+:/) {split($$0,a,":"); printf "\033[36m%-20s\033[0m %s\n", a[1], desc}}' $(MAKEFILE_LIST)
 
-setup: ## Install dependencies
+## Install dependencies
+setup:
 	poetry install
 
-start: ## Start app (prod)
+## Start app (prod)
+start:
 	FLASK_DEBUG=0 poetry run $(PYTHON) main.py $(DB_CONFIG)
 
-dev: ## Start app (dev)
+## Start app (dev)
+dev:
 	FLASK_DEBUG=1 FLASK_HOST=$(HOST) FLASK_PORT=$(PORT) poetry run $(PYTHON) main.py $(DB_CONFIG)
 
-seed: ## Seed database
+## Seed database
+seed:
 	poetry run $(PYTHON) -m app.utils.db.seed $(DB_CONFIG)
 
-reset: ## Delete SQLite DB file
+## Delete SQLite DB file
+reset:
 	@if [ -f "$(DB_PATH)" ]; then rm "$(DB_PATH)"; fi
 
-rebuild: reset seed ## Reset DB and seed
+## Reset DB and seed
+rebuild: reset seed
 
-launch: rebuild dev ## Reset DB, seed, and start dev server
+## Reset DB, seed, and start dev server
+launch: rebuild dev
 
-format: ## Format code
+## Format code
+format:
 	poetry run ruff format .
 
-lint: ## Lint code
+## Check formatting (exit non-zero if formatting needed)
+format-check:
+	poetry run ruff format --check .
+
+## Lint only `app`, `tests`, and `main.py`
+ruff-check:
+	poetry run ruff check app tests main.py
+
+## Lint code
+lint:
 	poetry run ruff check .
 
-type: ## Type check
+## Type check
+type:
 	poetry run mypy ./app
 
-test: ## Run tests
+## Run tests
+test:
 	poetry run pytest
 
-check: format lint type test ## Run all QA checks
+## Run all QA checks (formatting is checked, not applied)
+check: format-check lint type test
 
-clean: ## Clean cache/temp files
+## Clean cache/temp files
+clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 
-checkfix: ## Auto-fix lint issues
+## Auto-fix lint issues
+checkfix:
 	poetry run ruff check --fix .

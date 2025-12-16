@@ -54,8 +54,10 @@ class BaseDB(Generic[BaseDBConfigType]):
             classes = insp.getmembers(models, insp.isclass)
             tbls: dict[str, type[models.BaseTable]] = {}
             for class_name, class_object in classes:
-                if "Table" in class_name and "Base" not in class_name and isinstance(
-                    class_object, type
+                if (
+                    "Table" in class_name
+                    and "Base" not in class_name
+                    and isinstance(class_object, type)
                 ):
                     tbls[class_object.__tablename__] = class_object  # type: ignore[attr-defined]
             cls._tables = tbls

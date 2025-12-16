@@ -1,4 +1,5 @@
 """Tests for route handlers."""
+
 from flask import Flask
 
 from app.routes import _handle_unauthorized

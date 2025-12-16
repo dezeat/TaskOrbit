@@ -1,4 +1,5 @@
 """Tests for database CRUD utility functions."""
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -70,7 +71,6 @@ def test_serialize_output_handles_various_shapes(monkeypatch: MonkeyPatch) -> No
     u.name = "alice"
     u.hashed_password = "pw"  # noqa: S105
     u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
-
 
     t = task_row()
     t.name = "do"

@@ -1,4 +1,3 @@
-
 """Pytest configuration and fixtures for tests."""
 
 import sys
@@ -81,6 +80,7 @@ class FakeSession:
 
     def execute(self, _stmt: object) -> object:
         """Execute a statement and return a result object."""
+
         class _ScalarResult:
             def __init__(self, data: object) -> None:
                 self._data = data

@@ -1,2 +1,1 @@
-
 """App configuration module."""

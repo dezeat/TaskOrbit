@@ -1,4 +1,5 @@
 """Tests for database models."""
+
 from app.utils.db.models import Task, User
 
 
