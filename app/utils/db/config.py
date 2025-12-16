@@ -170,7 +170,8 @@ class DBConfigFactory:
         """Resolve and create db configuration instance based on provided dictionary."""
         db_type_str = config_dict.get("type")
         if not db_type_str:
-            raise DBConfigError("DB-Type must be provided.")
+            msg = "DB-Type must be provided."
+            raise DBConfigError(msg)
 
         # --- FIX: Inject default echo=False if not present ---
         if "echo" not in config_dict:
@@ -183,7 +184,10 @@ class DBConfigFactory:
             possible_types = (
                 LocalDBConfig.possible_types + ServerDBConfig.possible_types
             )
-            msg = f"Config type must be one of: {', '.join(t.value for t in possible_types)}"
+            msg = (
+                "Config type must be one of: "
+                f"{', '.join(t.value for t in possible_types)}"
+            )
             raise DBConfigError(msg)
 
         if db_type in LocalDBConfig.possible_types:
@@ -192,7 +196,8 @@ class DBConfigFactory:
         if db_type in ServerDBConfig.possible_types:
             return ServerDBConfig.from_dict(config_dict)
 
-        raise DBConfigError(f"Unsupported DB type: {db_type.value}")
+        msg = f"Unsupported DB type encountered: {db_type.value}"
+        raise DBConfigError(msg)
 
     def from_filepath(self, filepath: Path) -> BaseDBConfig:
         """Load database configuration from a YAML file."""
