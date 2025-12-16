@@ -1,61 +1,51 @@
-PYTHON_VERSION = python3.12
+PYTHON = python3
+POETRY = poetry
+
+DB_CONFIG ?= app/utils/db/default_db_config.yaml
+SQLITE_PATH ?= app/default_sqlite.db
+
+# Simple project tasks
+.PHONY: setup start dev init-db reset-db seed-db launch format lint type test clean
 
 setup:
-	poetry env use $(PYTHON_VERSION)
-	poetry install
+	@echo "Poetry is available. Run 'poetry install' if dependencies are missing."
 
-clean:
-	poetry env remove $(PYTHON_VERSION)
+# Start without debug (uses env vars if set)
+start:
+	@echo "Starting app..."
+	$(POETRY) run $(PYTHON) main.py $(DB_CONFIG)
 
-check:
-	check-lint check-typing check-format
+# Dev server on localhost:5000
+dev:
+	@echo "Starting dev server on http://127.0.0.1:5000"
+	FLASK_DEBUG=1 FLASK_HOST=127.0.0.1 FLASK_PORT=5000 $(POETRY) run $(PYTHON) main.py $(DB_CONFIG)
 
-check-format:
-	@OUTPUT=$(poetry run ruff format --check . 2>&1); \
-	if [ $$? -eq 0 ]; then \
-		echo "Code is formatted correctly" \
-	else \
-		echo "Code formatting errors:" \
-		echo "$$OUTPUT" \
-		exit 1 \
-	fi
+# Initialize / seed DB (idempotent)
+init-db:
+	@echo "Seeding database..."
+	@$(POETRY) run $(PYTHON) main.py $(DB_CONFIG) --init-db
 
-check-lint:
-    @OUTPUT=$(poetry run ruff check . 2>&1); \
-    if [ $$? -eq 0 ]; then \
-        echo "Code is lint-free" \
-    else \
-        echo "Linting errors:" \
-        echo "$$OUTPUT" \
-        exit 1 \
-    fi
+# Remove sqlite DB file so next run starts fresh
+reset-db:
+	@rm -f $(SQLITE_PATH)
+	@echo "Removed $(SQLITE_PATH)"
 
-check-typing:
-    @OUTPUT=$(poetry run mypy ./app 2>&1); \
-    if [ $$? -eq 0 ]; then \
-        echo "Type checks passed" \
-    else \
-        echo "Type checking errors:" \
-        echo "$$OUTPUT" \
-        exit 1 \
-    fi
+# Reset, seed and start dev server
+launch: reset-db init-db dev
+
+# Formatting and checks
+format:
+	@$(POETRY) run ruff format .
+
+lint:
+	@$(POETRY) run ruff check .
+
+type:
+	@$(POETRY) run mypy ./app
 
 test:
-	poetry run pytest
+	@$(POETRY) run pytest
 
-update:
-	git pull
-	poetry update
-
-format:
-	poetry run ruff format .
-
-checkfix:
-	poetry run ruff check --fix .
-
-rebase:
-	git pull --rebase origin dev
-
-push: 
-	check test
-	git push origin
+clean:
+	@rm -f $(SQLITE_PATH)
+	@echo "Cleaned project artifacts"
