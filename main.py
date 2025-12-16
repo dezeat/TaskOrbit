@@ -1,4 +1,8 @@
-"""..."""
+"""Entrypoint and helper utilities for the TaskOrbit application.
+
+Provides functions to initialize and seed the database and to run the
+Flask application server.
+"""
 
 import os
 import sys
@@ -9,24 +13,28 @@ from sqlalchemy.orm import Session, scoped_session
 
 from app import app
 from app.utils.db.config import DBConfigFactory
-from app.utils.db.crud import insert, select_, select_all
+from app.utils.db.crud import bulk_insert, fetch_all, fetch_where
 from app.utils.db.database import BaseDB, db_factory
-from app.utils.db.models import BaseModel, Task, TaskTable, User, UserTable
+from app.utils.db.models import Task, TaskTable, User, UserTable
 from app.utils.logger import logger
 
 
 def populate_db(db: BaseDB) -> None:
-    """..."""
+    """Populate the database with an admin user and sample tasks.
+
+    This creates a default `admin` user and a couple of sample tasks tied
+    to that user. Intended for initial seeding in development.
+    """
     session = db.session()
 
     # Add User
     user_data = {"name": "admin", "hashed_password": "admin"}
     user = User.from_dict(user_data)
-    insert(session=session, table=UserTable, data=[user])
+    bulk_insert(session=session, table=UserTable, data=[user])
     db_session_handler(session)
 
     # Create Task-Data
-    admin_result = select_(
+    admin_result = fetch_where(
         session=session, table=UserTable, filter_map={"name": ["admin"]}
     )
     db_session_handler(session)
@@ -48,12 +56,15 @@ def populate_db(db: BaseDB) -> None:
 
     # Insert Task Data
     tasks = [Task.from_dict(task) for task in task_data]
-    insert(session=session, table=TaskTable, data=tasks)
+    bulk_insert(session=session, table=TaskTable, data=tasks)
     db_session_handler(session)
 
 
 def db_session_handler(session: scoped_session[Session]) -> None:
-    """..."""
+    """Commit the session or rollback on integrity errors.
+
+    Logs IntegrityError instances and performs a rollback when they occur.
+    """
     try:
         session.commit()
     except IntegrityError as ie:
@@ -77,7 +88,7 @@ def main(filepath: Path, init_only: bool = False) -> None:
     # Seed DB only if empty (prevents duplicate-seed errors on restart)
     session = db.session()
     try:
-        existing_users = select_all(session=session, table=UserTable)
+        existing_users = fetch_all(session=session, table=UserTable)
     finally:
         session.close()
 
@@ -97,7 +108,7 @@ def main(filepath: Path, init_only: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    """..."""
+    # Run as script: determine DB config path and optional init flag
     default_db_path = "app/utils/db/default_db_config.yaml"
     # Determine db config path and flags
     db_config_path = default_db_path if len(sys.argv) < 2 else sys.argv[1]  # noqa: PLR2004

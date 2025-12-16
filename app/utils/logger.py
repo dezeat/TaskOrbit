@@ -1,4 +1,7 @@
-"""..."""
+"""Configure a module-level logger for the application.
+
+Sets up a simple formatting and exposes `logger` for import.
+"""
 
 import logging
 
