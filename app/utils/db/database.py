@@ -122,10 +122,10 @@ class SQLiteDB(BaseDB[LocalDBConfig]):
         """Checks if the SQLite database file exists."""
         # --- FIX: Clean path string for correct file checking ---
         db_path_str = cls.config.url.replace("sqlite:///", "")
-        
+
         # Handle absolute paths edge case (sqlite:////)
         if cls.config.url.startswith("sqlite:////"):
-             db_path_str = cls.config.url.replace("sqlite:////", "/")
+            db_path_str = cls.config.url.replace("sqlite:////", "/")
 
         _exists = Path(db_path_str).is_file()
 
@@ -148,11 +148,11 @@ class PostgresDB(BaseDB[ServerDBConfig]):
         """Checks if the database is reachable by executing a simple query."""
         try:
             cls.engine().connect().execute(text("SELECT 1"))
-            return True  
-
         except SQLAlchemyError as e:
             msg = f"Database connection failed: {e}"
             raise DBSetupError(msg) from e
+        else:
+            return True
 
 
 def db_factory(config: BaseDBConfig) -> type[BaseDB]:

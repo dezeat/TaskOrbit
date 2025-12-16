@@ -7,7 +7,7 @@ Run this independently of the main application server.
 import sys
 from pathlib import Path
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session
 
 # Adjust imports to ensure they work when run as a module
@@ -26,9 +26,9 @@ def db_session_handler(session: scoped_session[Session]) -> None:
     except IntegrityError as ie:
         session.rollback()
         logger.warning(f"IntegrityError (entry likely exists): {ie}")
-    except Exception as e:
+    except SQLAlchemyError as e:
         session.rollback()
-        logger.error(f"Unexpected error: {e}")
+        logger.error(f"Database error: {e}")
 
 
 def populate_db(db: BaseDB) -> None:
