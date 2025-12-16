@@ -22,8 +22,6 @@ def create_app(db: BaseDB, template_folder: str = "templates") -> Flask:
 
     _start_session_management(app, db)
 
-
-
     app.register_blueprint(main_bp)
 
     return app
@@ -42,7 +40,7 @@ def _start_session_management(app: Flask, db: BaseDB) -> None:
         g.db_session = db.session()
 
     @app.teardown_request
-    def teardown_request(exception) -> None:
+    def teardown_request(exception: Exception) -> None:
         """Remove the session after the request is finished."""
         if exception:
             g.db_session.rollback()

@@ -62,6 +62,7 @@ def search_tasks(
     rows = session.execute(stmt).scalars().all()
     return serialize_output(rows)
 
+
 def fetch_all(session: Session, table: type[BaseTable]) -> list[BaseModel]:
     """Return all rows from `table` converted to application models."""
     rows = session.execute(select(table)).scalars().all()
@@ -91,8 +92,9 @@ def fetch_where(
     rows = session.execute(stmt).scalars().all()
     return serialize_output(rows)
 
+
 def fetch_user_tasks(
-    session: Session, user_id: UUIDTYPE, completed: bool
+    session: Session, user_id: UUIDTYPE, *, completed: bool
 ) -> list[BaseModel]:
     """Fetch tasks based on completion status (ts_acomplished is None or Not None)."""
     stmt = select(TaskTable).where(TaskTable.user_id == user_id)
@@ -106,6 +108,7 @@ def fetch_user_tasks(
 
     rows = session.execute(stmt).scalars().all()
     return serialize_output(rows)
+
 
 def update_where(
     session: Session,
