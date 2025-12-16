@@ -19,26 +19,16 @@
    * @param {string} message - The input string to hash.
    * @returns {Promise<string>} Hex-encoded SHA-256 digest.
    */
-  async function sha256hex(message) {
-    const enc = new TextEncoder();
-    const data = enc.encode(message);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    const bytes = new Uint8Array(hash);
-    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
+  // No client-side hashing: password is submitted plain-text and
+  // hashed server-side. Keep only basic validation in the client.
 
   /**
    * Handle login form submission: hash the password field and submit.
    * @param {Event} e - The submit event from the login form.
    */
-  async function handleLoginSubmit(e) {
-    const form = e.target;
-    const pwd = form.querySelector('input[name="password"]');
-    if (!pwd || !pwd.value) return;
-    e.preventDefault();
-    const h = await sha256hex(pwd.value);
-    pwd.value = h;
-    form.submit();
+  function handleLoginSubmit(e) {
+    // Let normal form submission occur; no client hashing.
+    return true;
   }
 
   /**
@@ -46,23 +36,19 @@
    * Clears the plain-text fields before submitting to avoid leakage.
    * @param {Event} e - The submit event from the register form.
    */
-  async function handleRegisterSubmit(e) {
-    e.preventDefault();
+  function handleRegisterSubmit(e) {
+    // Basic client-side validation only: ensure passwords match.
     const form = e.target;
     const pwd = form.querySelector('#reg-password');
     const pwdConfirm = form.querySelector('#reg-password-confirm');
-    const pwdHash = form.querySelector('#reg-password-hash');
-    if (!pwd || !pwdConfirm || !pwdHash) return;
-    if (!pwd.value || !pwdConfirm.value) return;
+    if (!pwd || !pwdConfirm) return;
     if (pwd.value !== pwdConfirm.value) {
       alert('Passwords do not match');
-      return;
+      e.preventDefault();
+      return false;
     }
-    const h = await sha256hex(pwd.value);
-    pwdHash.value = h;
-    pwd.value = '';
-    pwdConfirm.value = '';
-    form.submit();
+    // Allow submission; server will hash the password.
+    return true;
   }
 
   /**

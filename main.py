@@ -8,23 +8,37 @@ import sys
 from pathlib import Path
 
 from app import app
-from app.utils.db.config import DBConfigFactory
-from app.utils.db.database import db_factory
+from app.utils.db.config import DBConfigFactory, LocalDBConfig, ServerDBConfig
+from app.utils.db.database import PostgresDB, SQLiteDB
 from app.utils.logger import logger
 
 
 def main(config_path: Path) -> None:
     """Initialize resources and run the Flask app."""
-    # 1. Load Configuration
-    if not config_path.exists():
-        logger.error(f"Configuration file not found at {config_path}")
-        sys.exit(1)
+    # 1. Load Configuration (file preferred, fall back to environment)
+    try:
+        db_config = DBConfigFactory().from_filepath(config_path)
+    except Exception as e:
+        logger.warning(
+            "Config file missing or invalid, attempting env-based config: %s", e
+        )
+        try:
+            db_config = DBConfigFactory()._resolve_from_env()
+            if db_config is None:
+                raise RuntimeError("No DB configuration available from env")
+        except Exception as exc:
+            logger.error("Failed to resolve DB configuration: %s", exc)
+            sys.exit(1)
 
-    db_config = DBConfigFactory().from_filepath(config_path)
+    # 2. Setup Database Connection (create engine and tables)
+    if isinstance(db_config, LocalDBConfig):
+        db = SQLiteDB.setup(db_config)
+    elif isinstance(db_config, ServerDBConfig):
+        if db_config.type == db_config.type.POSTGRESQL:
+            db = PostgresDB.setup(db_config)
+        else:
+            raise RuntimeError("Unsupported server DB type for startup")
 
-    # 2. Setup Database Connection
-    # This creates the engine but does NOT seed data.
-    db = db_factory(db_config)
     logger.info(f"Database engine initialized for: {db_config.name}")
 
     # 3. Create Flask Application

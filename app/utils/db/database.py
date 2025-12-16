@@ -43,7 +43,7 @@ class BaseDB(Generic[BaseDBConfigType]):
     def engine(cls) -> Engine:
         """Return the SQLAlchemy engine for this DB, creating it if needed."""
         if cls._engine is None:
-            # --- FIX: Use the echo setting from config ---
+            # Create engine using configured URL and echo setting.
             cls._engine = create_engine(cls.config.url, echo=cls.config.echo)
         return cls._engine
 
@@ -126,7 +126,7 @@ class SQLiteDB(BaseDB[LocalDBConfig]):
     @classmethod
     def _check_conn(cls) -> bool:
         """Checks if the SQLite database file exists."""
-        # --- FIX: Clean path string for correct file checking ---
+        # Normalize sqlite URL to filesystem path for existence check.
         db_path_str = cls.config.url.replace("sqlite:///", "")
 
         # Handle absolute paths edge case (sqlite:////)
@@ -159,20 +159,3 @@ class PostgresDB(BaseDB[ServerDBConfig]):
             raise DBSetupError(msg) from e
         else:
             return True
-
-
-def db_factory(config: BaseDBConfig) -> type[BaseDB]:
-    """Return a configured `BaseDB` subclass for the given config."""
-    if isinstance(config, LocalDBConfig):
-        return SQLiteDB.setup(config)
-
-    if isinstance(config, ServerDBConfig):
-        if config.type == DatabaseType.POSTGRESQL:
-            return PostgresDB.setup(config)
-
-        if config.type == DatabaseType.MYSQL:
-            pass
-
-    config_types = [cls.__name__ for cls in BaseDBConfig.__subclasses__()]
-    msg = "DBConfig needs to be of type " + ", ".join(config_types)
-    raise DBSetupError(msg)

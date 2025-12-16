@@ -43,11 +43,10 @@ class BaseTable(DeclarativeBase):
 
     def to_dict(self) -> dict[str, Any]:
         """Return a shallow dict of public ORM attributes for the instance."""
-        return {
-            key: value
-            for key, value in self.__dict__.items()
-            if key in [attr for attr in dir(self) if not attr.startswith("_")]
-        }
+        # Deprecated: prefer Pydantic `from_attributes` conversion or direct
+        # ORM attribute access. Keep a minimal dict helper for backward
+        # compatibility but avoid relying on this for new code.
+        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
     @abstractmethod
     def __repr__(self) -> str:
@@ -96,62 +95,55 @@ class TaskTable(BaseTable):
 
 @dataclass
 class BaseModel(ABC):
-    """Abstract base class for application data models."""
+    """Legacy placeholder removed — application now uses Pydantic schemas
+    and direct ORM objects. This class remains only for import compatibility
+    with older code/tests and should be removed in a future cleanup.
+    """
+
+
+# Legacy dataclass-based models and `MODEL_MAP` have been removed.
+# Use the ORM classes in this module together with Pydantic schemas
+# (see `app/schemas.py`) for serialization and API payloads.
+
+
+# Backwards-compatible lightweight dataclasses for tests and imports.
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass
+class User:
+    """Light compatibility dataclass mirroring legacy shape used in tests."""
 
     name: str
-
-    @classmethod
-    @abstractmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BaseModel":
-        """Construct and return a dataclass model from a dictionary.
-
-        Must be implemented by concrete model classes.
-        """
-
-
-@dataclass
-class User(BaseModel):
-    """Data model for user-related information."""
-
     hashed_password: str
-    id: UUIDTYPE | None = None
-    last_login_ts: datetime | None = None
+    id: Any = None
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "User":
-        """Create a `User` dataclass from a mapping of attributes.
-
-        Expects `name` and `hashed_password` keys; other fields are optional.
-        """
-        return cls(
-            name=data["name"],
-            id=data.get("id"),
-            hashed_password=data["hashed_password"],
-            last_login_ts=data.get("last_login_ts"),
+    @staticmethod
+    def from_dict(d: dict[str, object]) -> "User":
+        return User(
+            name=d.get("name", ""),
+            hashed_password=d.get("hashed_password", ""),
+            id=d.get("id"),
         )
 
 
 @dataclass
-class Task(BaseModel):
-    """Data model for task-related information."""
+class Task:
+    """Light compatibility dataclass mirroring legacy shape used in tests."""
 
-    user_id: UUIDTYPE
-    id: UUIDTYPE | None = None
+    name: str
+    user_id: Any | None = None
+    id: Any | None = None
     description: str | None = None
-    ts_acomplished: datetime | None = None
-    ts_deadline: datetime | None = None
+    ts_acomplished: Any | None = None
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Task":
-        """Create a `Task` dataclass from a mapping of attributes."""
-        return cls(
-            name=data["name"],
-            id=data.get("id"),
-            user_id=data["user_id"],
-            description=data.get("description"),
-            ts_acomplished=data.get("ts_acomplished"),
-            ts_deadline=data.get("ts_deadline"),
+    @staticmethod
+    def from_dict(d: dict[str, object]) -> "Task":
+        return Task(
+            name=d.get("name", ""),
+            user_id=d.get("user_id"),
+            id=d.get("id"),
+            description=d.get("description"),
+            ts_acomplished=d.get("ts_acomplished"),
         )
-
-
-MODEL_MAP: dict[str, type[BaseModel]] = {"UserTable": User, "TaskTable": Task}

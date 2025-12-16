@@ -1,11 +1,10 @@
 """Integration-style tests for critical task flows: add/edit/delete and errors."""
 
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from flask import Flask
-
-from app.utils.db.models import User, UserTable
 
 pytestmark = pytest.mark.usefixtures(
     "fix_db_and_auth", "fix_stub_render", "fix_fetch_default"
@@ -13,20 +12,9 @@ pytestmark = pytest.mark.usefixtures(
 
 
 @pytest.fixture
-def fix_bulk_insert_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
-    """Capture the first item passed to `bulk_insert`.
-
-    Returns a mutable dict where the created object is stored under key
-    `'task'` so tests can assert on inserted values.
-    """
-    created: dict[str, object] = {}
-
-    def _fake_bulk_insert(session: object, table: object, data: list[object]) -> None:  # noqa: ARG001
-        created["task"] = data[0]
-
-    monkeypatch.setattr("app.routes.bulk_insert", _fake_bulk_insert)
-
-    return created
+def fix_bulk_insert_capture(monkeypatch: pytest.MonkeyPatch, fix_app: Flask) -> object:
+    """Return the fake DB session so tests can inspect `.added`."""
+    return fix_app._fake_db
 
 
 @pytest.fixture
@@ -92,49 +80,40 @@ def fix_crud_search_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, object
 
 
 @pytest.fixture
-def fix_fetch_no_task(
-    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
-) -> None:
-    """Return a user for session validation but no tasks when looked up by id.
-
-    This fixture overrides the default `fetch_where` to simulate the
-    case where a requested task does not exist in the database.
-    """
-    # Ensure the module default fetch fixture runs first.
-    request.getfixturevalue("fix_fetch_default")
-
-    def _fake_fetch_where(
-        session: object,  # noqa: ARG001
-        table: object,
-        filter_map: dict[str, object],  # noqa: ARG001
-    ) -> list[object]:
-        if getattr(table, "__name__", "") == UserTable.__name__:
-            return [User(name="foo", hashed_password="bar")]  # noqa: S106
-        return []
-
-    monkeypatch.setattr("app.routes.fetch_where", _fake_fetch_where)
-
-
-@pytest.fixture
 def fix_fetch_task_for_toggle(
-    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+    monkeypatch: pytest.MonkeyPatch, fix_db_and_auth, request: pytest.FixtureRequest
 ) -> None:
     """Return a simple task-like object when the view looks up a task by id.
 
-    The returned object provides `id` and `ts_acomplished` attributes used by
-    the toggle handler. Other calls (session validation) still return a user.
+    This fixture ensures route handlers that query for a task by id receive a
+    minimal object with the expected attributes.
     """
 
     class _SimpleTask:
-        """Minimal task-like object used by the toggle tests."""
-
         def __init__(self, id_val: str) -> None:
-            """Create a minimal task with the given id and an empty timestamp."""
             self.id = id_val
+            self.completed = False
+            self.name = "foo"
+            self.description = "bar"
             self.ts_acomplished = None
 
-    # Ensure the module default fetch fixture runs first.
-    request.getfixturevalue("fix_fetch_default")
+    fix_app = request.getfixturevalue("fix_app")
+    # emulate a task for id lookups
+    fix_app._fake_db._scalars_result = [_SimpleTask("toggle-id")]
+
+    # Ensure `get` returns the task for TaskTable lookups and a user for
+    # UserTable lookups to keep session validation working.
+    def _fake_get(table: object, key: object) -> object | None:
+        name = getattr(table, "__name__", "")
+        if name == "TaskTable":
+            return _SimpleTask(key)
+        if name == "UserTable":
+            return SimpleNamespace(
+                name="foo", hashed_password="hashed-bar", id="user-id"
+            )
+        return None
+
+    monkeypatch.setattr(fix_app._fake_db, "get", _fake_get, raising=False)
 
     def _fake_fetch_where(
         session: object,  # noqa: ARG001
@@ -148,14 +127,39 @@ def fix_fetch_task_for_toggle(
                 else filter_map.get("id")
             )
             return [_SimpleTask(id_val)]
-        return [User(name="foo", hashed_password="bar")]  # noqa: S106
+        return []
 
     monkeypatch.setattr("app.routes.fetch_where", _fake_fetch_where)
 
 
-def test_add_task_creates_and_triggers(
-    fix_app: Flask, fix_bulk_insert_capture: dict[str, object]
+@pytest.fixture
+def fix_fetch_no_task(
+    monkeypatch: pytest.MonkeyPatch, fix_db_and_auth, request: pytest.FixtureRequest
 ) -> None:
+    """Ensure fetches return no tasks (used for not-found flows)."""
+    fix_app = request.getfixturevalue("fix_app")
+    # Provide a valid user for session validation but no tasks for lookups.
+    fix_app._fake_db._scalars_result = [
+        SimpleNamespace(name="foo", hashed_password="hashed-bar", id="user-id")
+    ]
+
+    def _fake_get(table: object, key: object) -> object | None:
+        name = getattr(table, "__name__", "")
+        if name == "UserTable":
+            return fix_app._fake_db._scalars_result[0]
+        return None
+
+    monkeypatch.setattr(fix_app._fake_db, "get", _fake_get, raising=False)
+
+    def _fake_fetch_where(
+        session: object, table: object, filter_map: dict[str, object]
+    ) -> list[object]:
+        return []
+
+    monkeypatch.setattr("app.routes.fetch_where", _fake_fetch_where)
+
+
+def test_add_task_creates_and_triggers(fix_app: Flask, fix_bulk_insert_capture) -> None:
     """POST /add_task calls `bulk_insert` and returns an HX trigger."""
     client = fix_app.test_client()
     created = fix_bulk_insert_capture
@@ -169,10 +173,12 @@ def test_add_task_creates_and_triggers(
 
     assert resp.status_code == 200
     assert resp.headers.get("HX-Trigger") == "newTask"
-    assert "task" in created
-    task = created["task"]
-    assert getattr(task, "name", None) == "foo"
-    assert getattr(task, "description", None) == "bar"
+    # Inspect the fake DB session for the added TaskTable instance
+    added = created.added
+    assert len(added) >= 1
+    new_item = added[0]
+    assert getattr(new_item, "name", None) == "foo"
+    assert getattr(new_item, "description", None) == "bar"
 
 
 def test_edit_task_updates_and_triggers(

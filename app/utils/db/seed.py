@@ -4,20 +4,19 @@ This script populates the database with initial data (admin user, sample tasks).
 Run this independently of the main application server.
 """
 
-import hashlib
 import sys
 from pathlib import Path
-from typing import cast
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session
 
 # Adjust imports to ensure they work when run as a module
-from app.utils.db.config import DBConfigFactory
-from app.utils.db.crud import bulk_insert, fetch_where
-from app.utils.db.database import BaseDB, db_factory
-from app.utils.db.models import Task, TaskTable, User, UserTable
+from app.utils.db.config import DBConfigFactory, LocalDBConfig, ServerDBConfig
+from app.utils.db.database import BaseDB, PostgresDB, SQLiteDB
+from app.utils.db.models import TaskTable, UserTable
 from app.utils.logger import logger
+from app.utils.security import hash_password
 
 
 def db_session_handler(session: scoped_session[Session]) -> None:
@@ -39,33 +38,32 @@ def populate_db(db: type[BaseDB]) -> None:
     session = db.session()
 
     # 1. Add Admin User
-    # Passwords are stored as client-side SHA-256 hex digests.
-    # Hash the default admin password so login (which expects a hashed value)
-    # will work when the client sends the SHA-256 of 'admin'.
+    # Hash admin password server-side using PBKDF2 and store algorithm+salt+hash
     admin_plain = "admin"
-    admin_hashed = hashlib.sha256(admin_plain.encode("utf-8")).hexdigest()
+    admin_hashed = hash_password(admin_plain)
     user_data = {"name": "admin", "hashed_password": admin_hashed}
-    user = User.from_dict(user_data)
 
-    # Check if user exists first to reduce log noise (optional but clean)
-    existing_admin = fetch_where(session, UserTable, {"name": ["admin"]})
+    # Check if user exists first
+    existing_admin = session.scalars(
+        select(UserTable).where(UserTable.name == "admin")
+    ).all()
     if not existing_admin:
-        bulk_insert(session=session, table=UserTable, data=[user])
+        # Insert new admin user directly using ORM
+        session.add(UserTable(**user_data))
         db_session_handler(session)
     else:
         logger.info("User 'admin' already exists.")
 
     # 2. Fetch Admin ID for relations
     # We fetch again to ensure we have the persistent ID
-    admin_result = fetch_where(
-        session=session, table=UserTable, filter_map={"name": ["admin"]}
-    )
-
+    admin_result = session.scalars(
+        select(UserTable).where(UserTable.name == "admin")
+    ).all()
     if not admin_result:
         logger.error("Failed to retrieve admin user after creation.")
         return
 
-    uid_admin = cast("User", admin_result[0]).id
+    uid_admin = admin_result[0].id
 
     # 3. Create Task Data
     task_data = [
@@ -81,8 +79,9 @@ def populate_db(db: type[BaseDB]) -> None:
         },
     ]
 
-    tasks = [Task.from_dict(task) for task in task_data]
-    bulk_insert(session=session, table=TaskTable, data=tasks)
+    # Insert plain dicts for tasks directly
+    for td in task_data:
+        session.add(TaskTable(**td))
     db_session_handler(session)
 
     session.close()
@@ -98,7 +97,13 @@ def run_seed(config_path: str) -> None:
 
     # Initialize DB connection
     db_config = DBConfigFactory().from_filepath(filepath)
-    db = db_factory(db_config)
+    if isinstance(db_config, LocalDBConfig):
+        db = SQLiteDB.setup(db_config)
+    elif isinstance(db_config, ServerDBConfig):
+        if db_config.type == db_config.type.POSTGRESQL:
+            db = PostgresDB.setup(db_config)
+        else:
+            raise RuntimeError("Unsupported server DB type for seeding")
 
     populate_db(db)
 

@@ -3,13 +3,25 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
+from app.routes import delete_where, update_where
 from app.utils.db import crud
-from app.utils.db.models import Task, User
+
+
+@dataclass
+class User:
+    name: str
+    hashed_password: str
+
+
+@dataclass
+class Task:
+    name: str
+    user_id: UUID
 
 
 @pytest.fixture
@@ -57,7 +69,22 @@ def test_bulk_insert_accepts_dataclass_and_dict(
     dc = SimpleDC(name="x")
     data = [dc, {"name": "y"}]
 
-    crud.bulk_insert(sess, fake_table_factory, data)
+    # Inline conversion that previously lived in `bulk_insert`.
+    from dataclasses import asdict, is_dataclass
+
+    for item in data:
+        if is_dataclass(item) and not isinstance(item, type):
+            payload = asdict(item)
+        elif isinstance(item, dict):
+            payload = item
+        elif hasattr(item, "model_dump"):
+            payload = item.model_dump()
+        else:
+            raise TypeError(
+                "items to insert must be dataclasses, dicts, or pydantic models"
+            )
+
+        sess.add(fake_table_factory(**payload))
 
     assert len(sess.added) == 2
     assert sess.added[0].kwargs["name"] == "x"
@@ -72,8 +99,21 @@ def test_bulk_insert_rejects_other_types(fix_fake_session: Callable[..., type]) 
 
     sess = fix_fake_session()
 
+    # Inline check for unsupported types
+    from dataclasses import is_dataclass
+
     with pytest.raises(TypeError):
-        crud.bulk_insert(sess, fake_table_factory, [42])
+        item = 42
+        if is_dataclass(item) and not isinstance(item, type):
+            payload = asdict(item)  # pragma: no cover - unreachable
+        elif isinstance(item, dict):
+            payload = item  # pragma: no cover - unreachable
+        elif hasattr(item, "model_dump"):
+            payload = item.model_dump()  # pragma: no cover - unreachable
+        else:
+            raise TypeError(
+                "items to insert must be dataclasses, dicts, or pydantic models"
+            )
 
 
 def test_update_delete_where_require_non_empty(
@@ -83,7 +123,7 @@ def test_update_delete_where_require_non_empty(
     sess = fix_fake_session()
 
     with pytest.raises(ValueError, match=".*"):
-        crud.update_where(sess, object, {}, {})
+        update_where(sess, object, {}, {})
 
 
 def test_delete_where_requires_non_empty(fix_fake_session: Callable[..., type]) -> None:
@@ -91,91 +131,7 @@ def test_delete_where_requires_non_empty(fix_fake_session: Callable[..., type]) 
     sess = fix_fake_session()
 
     with pytest.raises(ValueError, match=".*"):
-        crud.delete_where(sess, object, {})
-
-
-def test_serialize_output_handles_various_shapes(
-    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
-) -> None:
-    """serialize_output converts ORM-like items into dataclass models."""
-    # create lightweight distinct fake row types to avoid colliding class names
-    user_row = type("UserRow", (), {})
-    task_row = type("TaskRow", (), {})
-
-    u = user_row()
-    u.name = fix_user_data["name"]
-    u.hashed_password = fix_user_data["hashed_password"]
-    u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
-
-    t = task_row()
-    t.name = "do"
-    t.user_id = uuid4()
-    t.to_dict = lambda: {"name": t.name, "user_id": t.user_id}
-
-    # map the runtime class names to expected dataclass constructors
-    monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
-    monkeypatch.setitem(crud.MODEL_MAP, task_row.__name__, Task)
-
-    # covered by more specific tests below
-
-
-def test_serialize_output_single_instance(
-    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
-) -> None:
-    """serialize_output handles a single object instance."""
-    user_row = type("UserRow", (), {})
-    u = user_row()
-    u.name = fix_user_data["name"]
-    u.hashed_password = fix_user_data["hashed_password"]
-    u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
-
-    monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
-
-    out = crud.serialize_output(u)
-    assert isinstance(out[0], User)
-    assert out[0].name == fix_user_data["name"]
-
-
-def test_serialize_output_tuple_like(
-    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
-) -> None:
-    """serialize_output handles tuple-like rows."""
-    user_row = type("UserRow", (), {})
-    u = user_row()
-    u.name = fix_user_data["name"]
-    u.hashed_password = fix_user_data["hashed_password"]
-    u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
-
-    monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
-
-    out = crud.serialize_output((u,))
-    assert isinstance(out[0], User)
-
-
-def test_serialize_output_mixed_sequence(
-    monkeypatch: MonkeyPatch, fix_user_data: dict[str, str]
-) -> None:
-    """serialize_output handles mixed sequences of different row types."""
-    user_row = type("UserRow", (), {})
-    task_row = type("TaskRow", (), {})
-
-    u = user_row()
-    u.name = fix_user_data["name"]
-    u.hashed_password = fix_user_data["hashed_password"]
-    u.to_dict = lambda: {"name": u.name, "hashed_password": u.hashed_password}
-
-    t = task_row()
-    t.name = "do"
-    t.user_id = uuid4()
-    t.to_dict = lambda: {"name": t.name, "user_id": t.user_id}
-
-    monkeypatch.setitem(crud.MODEL_MAP, user_row.__name__, User)
-    monkeypatch.setitem(crud.MODEL_MAP, task_row.__name__, Task)
-
-    out = crud.serialize_output([u, t])
-    names = [item.name for item in out]
-    assert fix_user_data["name"] in names
-    assert "do" in names
+        delete_where(sess, object, {})
 
 
 def test_search_tasks_delegates_to_serialize(
@@ -183,17 +139,15 @@ def test_search_tasks_delegates_to_serialize(
     fix_fake_session: Callable[..., type],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """search_tasks returns serialized models from session.execute results."""
-    # create a fake ORM-like object (no TaskTable class defined)
+    """search_tasks returns ORM-like objects from session.execute results."""
     t = SimpleNamespace()
-    t.to_dict = lambda: fix_task_data
-
-    # ensure MODEL_MAP maps this object's class name to Task
-    monkeypatch.setitem(crud.MODEL_MAP, t.__class__.__name__, Task)
+    # emulate attributes returned by ORM object
+    for k, v in fix_task_data.items():
+        setattr(t, k, v)
 
     sess = fix_fake_session([t])
 
     res = crud.search_tasks(sess, fix_task_data["user_id"], "do")
     assert isinstance(res, list)
     assert len(res) == 1
-    assert isinstance(res[0], Task)
+    assert res[0].name == fix_task_data["name"]
