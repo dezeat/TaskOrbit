@@ -1,0 +1,41 @@
+name: check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.create false
+          poetry install --no-interaction --no-ansi
+
+      - name: ruff-format-check
+        run: poetry run ruff format --check .
+
+      - name: ruff-check
+        run: make ruff-check
+
+      - name: mypy
+        run: poetry run mypy ./app
+
+      - name: pytest
+        run: poetry run pytest -q
