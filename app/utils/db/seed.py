@@ -4,6 +4,7 @@ This script populates the database with initial data (admin user, sample tasks).
 Run this independently of the main application server.
 """
 
+import hashlib
 import sys
 from pathlib import Path
 from typing import cast
@@ -38,7 +39,12 @@ def populate_db(db: type[BaseDB]) -> None:
     session = db.session()
 
     # 1. Add Admin User
-    user_data = {"name": "admin", "hashed_password": "admin"}
+    # Passwords are stored as client-side SHA-256 hex digests.
+    # Hash the default admin password so login (which expects a hashed value)
+    # will work when the client sends the SHA-256 of 'admin'.
+    admin_plain = "admin"
+    admin_hashed = hashlib.sha256(admin_plain.encode("utf-8")).hexdigest()
+    user_data = {"name": "admin", "hashed_password": admin_hashed}
     user = User.from_dict(user_data)
 
     # Check if user exists first to reduce log noise (optional but clean)
