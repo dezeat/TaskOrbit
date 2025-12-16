@@ -12,7 +12,14 @@
 
     <div class="container max-w-md bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         
-        <h1 class="text-3xl font-bold text-center mb-6 tracking-tight">Task Orbit</h1>
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-3xl font-bold tracking-tight text-gray-900">Task Orbit</h1>
+            
+            <a href="{{ url_for('main.logout') }}" 
+            class="text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors bg-white">
+                Log Out
+            </a>
+        </div>
 
         <div class="mb-6 overflow-hidden rounded-xl border border-gray-100 shadow-sm">
         <img src="{{ url_for('static', filename='images/task_orbit.png') }}" 
