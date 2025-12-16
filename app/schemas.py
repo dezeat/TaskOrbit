@@ -1,25 +1,38 @@
-from datetime import datetime
-from typing import Optional
-from uuid import UUID
+"""Pydantic schemas describing API payloads for users and tasks.
+
+These use Pydantic v2 `from_attributes` conversion to accept ORM objects
+directly when building DTOs for templates and API responses.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
 
 class UserSchema(BaseModel):
+    """Schema for user objects exposed by the API."""
+
     model_config = ConfigDict(from_attributes=True)
 
-    id: Optional[UUID]
+    id: UUID | None = None
     name: str
     hashed_password: str
-    last_login_ts: Optional[datetime]
+    last_login_ts: datetime | None = None
 
 
 class TaskSchema(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """Schema for task objects exposed by the API."""
 
-    id: Optional[UUID]
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID | None = None
     user_id: UUID
     name: str
-    description: Optional[str]
-    ts_acomplished: Optional[datetime]
-    ts_deadline: Optional[datetime]
+    description: str | None = None
+    ts_acomplished: datetime | None = None
+    ts_deadline: datetime | None = None

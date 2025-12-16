@@ -103,7 +103,8 @@ def run_seed(config_path: str) -> None:
         if db_config.type == db_config.type.POSTGRESQL:
             db = PostgresDB.setup(db_config)
         else:
-            raise RuntimeError("Unsupported server DB type for seeding")
+            msg = "Unsupported server DB type for seeding"
+            raise RuntimeError(msg)
 
     populate_db(db)
 

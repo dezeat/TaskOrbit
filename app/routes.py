@@ -1,9 +1,17 @@
 """HTTP routes for the TaskOrbit UI.
 
-This module defines a small Flask `Blueprint` that exposes the web
-endpoints used by the UI. Handlers are intentionally thin and rely
-on the application's CRUD helpers and a per-request DB session on
-``flask.g``.
+This module exposes a small set of Flask endpoints used by the web
+UI. Handlers are intentionally thin and operate directly against the
+SQLAlchemy ORM session available on ``flask.g``. Keep business logic
+out of handlers: they translate HTTP input -> DB operations -> views.
+
+Design / Philosophy
+-------------------
+- Handlers should be small, testable, and explicit about side effects.
+- Prefer explicit ORM statements inside routes rather than indirection
+    via opaque helpers. This makes behavior clearer and easier to test.
+- Server is responsible for security-sensitive transformations (e.g.
+    hashing) so clients remain thin and untrusted.
 """
 
 from datetime import datetime, timezone
@@ -22,87 +30,31 @@ from flask import (
     url_for,
 )
 from jinja2 import TemplateNotFound
-from sqlalchemy import and_, delete, select, update
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from werkzeug.wrappers import Response as WResponse
 
-from app.utils.db.crud import search_tasks as crud_search_tasks
-from app.utils.db.models import Task as TaskDC
+from app.schemas import TaskSchema, UserSchema
+
+# search logic was in small CRUD helper; inlined below for clarity
 from app.utils.db.models import TaskTable, UserTable
-from app.utils.db.models import User as UserDC
 from app.utils.logger import logger
 from app.utils.security import hash_password, verify_password
-
-
-# Compatibility wrappers kept so tests or older code can patch/override them.
-def fetch_where(session, table, filter_map: dict[str, object]):
-    """Light wrapper to query `table` using a simple filter_map.
-
-    This function is provided for backward compatibility with tests
-    that monkeypatch `app.routes.fetch_where`. New code should prefer
-    direct SQLAlchemy access (see route implementations).
-    """
-    conditions = []
-    for col, vals in filter_map.items():
-        col_attr = getattr(table, col)
-        if isinstance(vals, (list, tuple)) and not isinstance(vals, (str, bytes)):
-            if len(vals) == 1:
-                conditions.append(col_attr == vals[0])
-            else:
-                conditions.append(col_attr.in_(vals))
-        else:
-            conditions.append(col_attr == vals)
-
-    stmt = select(table).where(*conditions) if conditions else select(table)
-    return session.scalars(stmt).all()
-
-
-def fetch_user_tasks(session, user_id, *, completed: bool):
-    """Compatibility wrapper for fetching a user's tasks filtered by completion."""
-    stmt = select(TaskTable).where(TaskTable.user_id == user_id)
-    if completed:
-        stmt = stmt.where(TaskTable.ts_acomplished.is_not(None)).order_by(
-            TaskTable.ts_acomplished.desc()
-        )
-    else:
-        stmt = stmt.where(TaskTable.ts_acomplished.is_(None)).order_by(
-            TaskTable.name.asc()
-        )
-    return session.scalars(stmt).all()
-
-
-def update_where(
-    session, table, match_cols: dict[str, object], updates: dict[str, object]
-) -> None:
-    """Update rows in `table` matching `match_cols` with values from `updates`.
-
-    Kept in routes to allow simple, test-friendly overrides during migration.
-    Transaction commit is left to the caller.
-    """
-    if not match_cols:
-        raise ValueError("match_cols must contain at least one column condition")
-
-    where_conditions = [getattr(table, k) == v for k, v in match_cols.items()]
-    stmt = update(table).where(and_(*where_conditions)).values(**updates)
-    session.execute(stmt)
-
-
-def delete_where(session, table, match_col: dict[str, object]) -> None:
-    """Delete rows from `table` matching the provided column/value mapping."""
-    if not match_col:
-        raise ValueError("match_col must contain at least one condition")
-
-    conditions = [getattr(table, k) == v for k, v in match_col.items()]
-    stmt = delete(table).where(and_(*conditions))
-    session.execute(stmt)
-
 
 bp = Blueprint("main", __name__)
 
 
 def _handle_unauthorized() -> WResponse:
-    """Handle redirection for unauthorized access, supporting HTMX headers."""
+    """Redirect an unauthorized request to the login page.
+
+    Returns an HTMX-aware redirect when the request contains the
+    ``HX-Request`` header so client-side navigation behaves correctly.
+
+    Returns:
+        A Flask response object performing either a normal redirect or
+        an HTMX redirect header.
+    """
     if request.headers.get("HX-Request"):
         resp = make_response("", 200)
         resp.headers["HX-Redirect"] = url_for("main.login")
@@ -111,7 +63,18 @@ def _handle_unauthorized() -> WResponse:
 
 
 def login_required(f: Callable[..., WResponse | str]) -> Callable[..., WResponse | str]:
-    """Decorator to require login and validate session integrity."""
+    """Decorator that ensures a valid authenticated user exists.
+
+    This decorator checks ``session['uid']`` and verifies it maps to a
+    real user record via the per-request DB session. If verification
+    fails the client is redirected to the login flow.
+
+    Args:
+        f: the view function to wrap.
+
+    Returns:
+        The wrapped view function which will enforce authentication.
+    """
 
     @wraps(f)
     def decorated_function(*args: object, **kwargs: object) -> WResponse | str:
@@ -135,7 +98,7 @@ def login_required(f: Callable[..., WResponse | str]) -> Callable[..., WResponse
                 fallback = getattr(g.db_session, "_scalars_result", None)
                 if fallback:
                     user_obj = fallback[0]
-            except Exception:
+            except (AttributeError, IndexError, TypeError):
                 user_obj = None
 
         if not user_obj:
@@ -149,7 +112,17 @@ def login_required(f: Callable[..., WResponse | str]) -> Callable[..., WResponse
 
 @bp.route("/login", methods=["GET", "POST"])
 def login() -> WResponse | str:
-    """Handle user login and session creation."""
+    """Handle user authentication and create a session on success.
+
+    This endpoint accepts form-encoded username and password values.
+    The server validates the provided plaintext password against the
+    stored hash using `verify_password` and sets ``session['uid']`` on
+    successful authentication.
+
+    Returns:
+        Renders the login template on GET or on failed auth, otherwise
+        redirects to the home page on success.
+    """
     if request.method == "GET":
         try:
             return render_template("login.html")
@@ -172,8 +145,7 @@ def login() -> WResponse | str:
         response = make_response("User not found", 200)
     else:
         user = users[0]
-        # Expect the client to send an already-hashed password string.
-        # Verify plain password server-side using PBKDF2 stored value
+        # Verify provided plaintext password against stored hash.
         if not password or not verify_password(password, user.hashed_password):
             response = make_response("Invalid password", 200)
         else:
@@ -198,7 +170,16 @@ def login() -> WResponse | str:
 
 @bp.route("/register", methods=["GET", "POST"])
 def register() -> WResponse | str:
-    """Handle user registration. Password is expected to be hashed client-side."""
+    """Create a new user account.
+
+    The endpoint expects form fields ``username`` and ``password`` with
+    the password provided in plaintext. The server hashes the password
+    before persisting the user record.
+
+    Returns:
+        Renders the register popup on GET or on error, otherwise
+        redirects to the login page after successful creation.
+    """
     result: WResponse | str | None = None
 
     if request.method == "GET":
@@ -227,16 +208,17 @@ def register() -> WResponse | str:
                 "partials/register_popup.html", error="User exists"
             )
         else:
-            # Create user record (hash password on server before storing)
+            # Create user record (server hashes plaintext password)
             hashed = hash_password(password)
-            # Use compatibility dataclass so bulk_insert handles conversion
-            user_dc = UserDC(name=username, hashed_password=hashed)
+            # Validate payload with Pydantic schema then persist
+            user_schema = UserSchema.model_validate(
+                {
+                    "name": username,
+                    "hashed_password": hashed,
+                }
+            )
             try:
-                # Directly add ORM instance to the session using dataclass payload
-                from dataclasses import asdict
-
-                payload = asdict(user_dc)
-                cast(Session, db_session).add(UserTable(**payload))
+                cast(Session, db_session).add(UserTable(**user_schema.model_dump()))
                 result = redirect(url_for("main.login"))
             except SQLAlchemyError as exc:
                 logger.exception("Error creating user: %s", exc)
@@ -256,7 +238,11 @@ def register() -> WResponse | str:
 
 @bp.route("/logout")
 def logout() -> WResponse:
-    """Clear session and return to login."""
+    """Clear the session and redirect the client to the login page.
+
+    Returns:
+        A Flask redirect response to the login endpoint.
+    """
     session.clear()
     return redirect(url_for("main.login"))
 
@@ -264,7 +250,14 @@ def logout() -> WResponse:
 @bp.route("/", methods=["GET"])
 @login_required
 def home() -> WResponse | str:
-    """Render the dashboard for the authenticated user."""
+    """Render the main dashboard for the authenticated user.
+
+    Args:
+        None (uses session['uid'] to identify the user).
+
+    Returns:
+        The rendered index template with the user's tasks.
+    """
     status = request.args.get("status", "active")
     is_completed = status == "done"
 
@@ -286,7 +279,14 @@ def home() -> WResponse | str:
 @bp.route("/task_list", methods=["GET"])
 @login_required
 def task_list() -> WResponse | str:
-    """Return the tasks list partial for the requested status."""
+    """Return the tasks list partial for the requested status.
+
+    Query params:
+        status: 'active' or 'done' to filter tasks by completion.
+
+    Returns:
+        Rendered partial HTML for the task list.
+    """
     status = request.args.get("status", "active")
     is_completed = status == "done"
 
@@ -307,19 +307,24 @@ def task_list() -> WResponse | str:
 @bp.route("/toggle_task/<task_id>", methods=["POST"])
 @login_required
 def toggle_task(task_id: str) -> WResponse:
-    """Toggle a task's completion timestamp and trigger a client reload."""
+    """Toggle a task's completion timestamp and trigger a client refresh.
+
+    Args:
+        task_id: UUID string for the task to toggle.
+
+    Returns:
+        204 response with an HX trigger header on success.
+    """
     task_uid = UUID(task_id)
 
     task = g.db_session.get(TaskTable, task_uid)
 
     new_ts = datetime.now(timezone.utc) if task.ts_acomplished is None else None
 
-    update_where(
-        g.db_session,
-        TaskTable,
-        match_cols={"id": task_uid},
-        updates={"ts_acomplished": new_ts},
+    stmt = (
+        update(TaskTable).where(TaskTable.id == task_uid).values(ts_acomplished=new_ts)
     )
+    g.db_session.execute(stmt)
 
     response = make_response("", 204)
     response.headers["HX-Trigger"] = "newTask"
@@ -329,15 +334,33 @@ def toggle_task(task_id: str) -> WResponse:
 @bp.route("/search_tasks", methods=["GET"])
 @login_required
 def search_tasks() -> WResponse | str:
-    """Search tasks by text and return the task list partial."""
+    """Search tasks by text and return the task list partial.
+
+    Query params:
+        search: the text to search for. If empty, delegates to `task_list`.
+
+    Returns:
+        Rendered task list partial for matching tasks.
+    """
     search_string = request.args.get("search")
 
     if not search_string:
         return task_list()
 
-    tasks = crud_search_tasks(
-        g.db_session, user_id=session["uid"], search_string=search_string
+    # Inline search: find tasks for the user where name or description
+    # contains the search string (case-insensitive).
+    pattern = f"%{search_string}%"
+    stmt = select(TaskTable).where(
+        and_(
+            TaskTable.user_id == session["uid"],
+            or_(TaskTable.name.ilike(pattern), TaskTable.description.ilike(pattern)),
+        )
     )
+
+    try:
+        tasks = g.db_session.execute(stmt).scalars().all()
+    except AttributeError:
+        tasks = g.db_session.scalars(stmt).all()
 
     return render_template(
         "/partials/task_list.html", tasks=tasks, current_tab="active"
@@ -347,25 +370,38 @@ def search_tasks() -> WResponse | str:
 @bp.route("/show_add_task", methods=["GET"])
 @login_required
 def show_add_task() -> str:
-    """Render the add-task popup partial (open state)."""
+    """Render the add-task popup in its open state.
+
+    Returns:
+        HTML partial for the add-task dialog.
+    """
     return render_template("partials/task_popup.html", show_popup=True)
 
 
 @bp.route("/add_task", methods=["POST"])
 @login_required
 def add_task() -> WResponse:
-    """Create a new task from form data and trigger list refresh."""
-    task_dc = TaskDC(
-        name=request.form.get("name") or "",
-        user_id=session["uid"],
-        description=request.form.get("description"),
+    """Create a new task from form data and trigger a list refresh.
+
+    Expects form fields: ``name`` and optional ``description``. The
+    server constructs a `TaskTable` ORM instance and adds it to the
+    active session; callers are responsible for committing where
+    appropriate.
+
+    Returns:
+        Rendered popup state and an HX trigger header to prompt list
+        refresh on the client.
+    """
+    task_schema = TaskSchema.model_validate(
+        {
+            "name": request.form.get("name") or "",
+            "user_id": session["uid"],
+            "description": request.form.get("description"),
+        }
     )
 
-    # Insert directly into the session
-    from dataclasses import asdict
-
-    task_payload = asdict(task_dc)
-    g.db_session.add(TaskTable(**task_payload))
+    # Insert directly into the session using validated schema payload
+    g.db_session.add(TaskTable(**task_schema.model_dump()))
 
     response = make_response(
         render_template("partials/task_popup.html", show_popup=False)
@@ -378,16 +414,28 @@ def add_task() -> WResponse:
 @bp.route("/close_add_task", methods=["GET"])
 @login_required
 def close_add_task() -> str:
-    """Close the add-task popup and return its rendered state."""
+    """Render the add-task popup in its closed state.
+
+    Returns:
+        HTML partial representing the closed popup.
+    """
     return render_template("partials/task_popup.html", show_popup=False)
 
 
 @bp.route("/delete-task/<task_id>", methods=["DELETE"])
 @login_required
 def delete_task(task_id: str) -> WResponse:
-    """Delete a task and signal the client to refresh the list."""
+    """Delete a task and signal the client to refresh the list.
+
+    Args:
+        task_id: UUID string identifying the task to delete.
+
+    Returns:
+        204 response with an HX trigger header on success.
+    """
     task_uid = UUID(task_id)
-    delete_where(g.db_session, TaskTable, match_col={"id": task_uid})
+    stmt = delete(TaskTable).where(TaskTable.id == task_uid)
+    g.db_session.execute(stmt)
 
     response = make_response("", 204)
     response.headers["HX-Trigger"] = "newTask"
@@ -398,7 +446,14 @@ def delete_task(task_id: str) -> WResponse:
 @bp.route("/show_edit_task/<task_id>", methods=["GET"])
 @login_required
 def show_edit_task(task_id: str) -> WResponse | str:
-    """Render the edit popup pre-filled with the selected task."""
+    """Render the edit popup pre-filled with the selected task.
+
+    Args:
+        task_id: UUID string identifying the task to edit.
+
+    Returns:
+        Rendered popup with the task or 404 when not found.
+    """
     task_uid = UUID(task_id)
 
     task = g.db_session.get(TaskTable, task_uid)
@@ -411,7 +466,15 @@ def show_edit_task(task_id: str) -> WResponse | str:
 @bp.route("/edit_task/<task_id>", methods=["POST"])
 @login_required
 def edit_task(task_id: str) -> WResponse:
-    """Update a task from form data and close the popup."""
+    """Update a task from form data and close the popup.
+
+    Args:
+        task_id: UUID string identifying the task to update.
+
+    Returns:
+        Rendered popup (closed) and HX trigger header to prompt list
+        refresh on the client.
+    """
     task_uid = UUID(task_id)
 
     updates = {
@@ -419,12 +482,12 @@ def edit_task(task_id: str) -> WResponse:
         "description": request.form.get("description"),
     }
 
-    update_where(
-        session=g.db_session,
-        table=TaskTable,
-        match_cols={"id": task_uid},
-        updates=cast(dict[str, object], updates),
+    stmt = (
+        update(TaskTable)
+        .where(TaskTable.id == task_uid)
+        .values(**cast(dict[str, object], updates))
     )
+    g.db_session.execute(stmt)
 
     response = make_response(
         render_template("partials/task_popup.html", show_popup=False)

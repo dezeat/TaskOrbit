@@ -1,20 +1,20 @@
-"""Tests for database models."""
+"""Tests for Pydantic schemas used for DB payloads."""
 
-from app.utils.db.models import Task, User
+from app.schemas import TaskSchema, UserSchema
 
 
-def test_user_from_dict_minimal(fix_user_data: dict[str, str]) -> None:
-    """User.from_dict constructs minimal User dataclass."""
-    u = User.from_dict(fix_user_data)
+def test_user_schema_validation_minimal(fix_user_data: dict[str, str]) -> None:
+    """UserSchema validates minimal input and exposes expected fields."""
+    u = UserSchema.model_validate(fix_user_data)
 
     assert u.hashed_password == fix_user_data["hashed_password"]
     assert u.name == fix_user_data["name"]
     assert u.id is None
 
 
-def test_task_from_dict_full(fix_task_data: dict[str, object]) -> None:
-    """Task.from_dict maps all provided fields."""
-    t = Task.from_dict(fix_task_data)
+def test_task_schema_validation_full(fix_task_data: dict[str, object]) -> None:
+    """TaskSchema validates full input mapping correctly."""
+    t = TaskSchema.model_validate(fix_task_data)
 
     assert t.name == "do something"
     assert t.user_id == fix_task_data["user_id"]

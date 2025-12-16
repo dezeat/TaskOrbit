@@ -6,8 +6,6 @@ from typing import Any
 import pytest
 from flask import Flask
 
-from app.utils.db.models import User
-
 pytestmark = pytest.mark.usefixtures("fix_db_and_auth")
 
 
@@ -27,7 +25,7 @@ def fix_mock_db_no_user(
 
 
 @pytest.fixture
-def fix_fake_user() -> User:
+def fix_fake_user() -> SimpleNamespace:
     """Return a sample `User` dataclass instance for login tests.
 
     Use a deterministic fake hashed value so tests can avoid invoking

@@ -6,7 +6,7 @@ application. It uses `passlib`'s `CryptContext` with the `bcrypt` scheme.
 
 from __future__ import annotations
 
-from passlib.context import CryptContext
+from passlib.context import CryptContext  # type: ignore[import]
 
 # Use bcrypt (work factor controlled by passlib). Keep deprecated="auto"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -21,5 +21,6 @@ def verify_password(password: str, hashed: str) -> bool:
     """Verify a plaintext password against a stored hash."""
     try:
         return pwd_context.verify(password, hashed)
-    except Exception:
+    except (ValueError, TypeError):
+        # Non-string inputs or malformed hashes may raise these errors.
         return False

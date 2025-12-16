@@ -4,10 +4,9 @@
  *
  * This module centralizes small behaviors needed by the login and
  * registration flows:
- * - Client-side SHA-256 hashing of passwords before submission
- * - Interception of login/register form submissions to replace plain
- *   passwords with their hashed hex digest
- * - Simple show/hide helpers for the register modal
+ * - Basic client-side validation and modal helpers.
+ * - Passwords are hashed server-side; the client performs no hashing.
+ * - Simple show/hide helpers for the register modal.
  *
  * The functions are intentionally small and defensive — they will no-op
  * if the expected DOM elements are not present so the module is safe to
@@ -19,8 +18,9 @@
    * @param {string} message - The input string to hash.
    * @returns {Promise<string>} Hex-encoded SHA-256 digest.
    */
-  // No client-side hashing: password is submitted plain-text and
-  // hashed server-side. Keep only basic validation in the client.
+  // Passwords are sent in plaintext to the server which is
+  // responsible for hashing them. The client only performs
+  // minimal validation (e.g. matching confirmation) for UX.
 
   /**
    * Handle login form submission: hash the password field and submit.

@@ -4,32 +4,43 @@ Defines Pydantic models for local and server DB configuration and a
 factory to load those from YAML files.
 """
 
+from __future__ import annotations
+
 import os
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Literal, Optional, cast
+from typing import TYPE_CHECKING, Annotated, Literal, cast
 
 import yaml
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
-# `pydantic-settings` is optional in some environments (tests). Provide a
-# minimal fallback for `BaseSettings` and `SettingsConfigDict` when the
-# package is not available so the rest of the module can operate.
-try:
-    from pydantic_settings import BaseSettings, SettingsConfigDict
-except Exception:
+# Support static type checking for `pydantic-settings` while providing a
+# runtime fallback when the package is not installed. This keeps behavior
+# predictable in tests and in minimal environments.
+if TYPE_CHECKING:
+    from pydantic_settings import BaseSettings, SettingsConfigDict  # type: ignore
+else:
+    try:
+        from pydantic_settings import BaseSettings, SettingsConfigDict
+    except Exception:
 
-    class SettingsConfigDict(dict):
-        pass
+        class SettingsConfigDict(dict):
+            """Tiny stand-in for pydantic SettingsConfigDict used in tests."""
 
-    class BaseSettings:  # very small fallback that reads from env vars
-        def __init__(self, **kwargs):
-            # Populate attributes defined on the typed subclass using
-            # environment variables if present, otherwise default to None.
-            annotations = getattr(self, "__annotations__", {})
-            for name in annotations:
-                setattr(self, name, os.environ.get(name, None))
+        class BaseSettings:  # very small fallback that reads from env vars
+            """Minimal fallback which populates annotated attributes from env."""
+
+            def __init__(self, **_kwargs) -> None:
+                """Populate annotated attributes from environment variables.
+
+                This minimal fallback reads attributes named in the subclass
+                annotations and sets them to the corresponding environment
+                variable value or ``None`` when absent.
+                """
+                annotations = getattr(self, "__annotations__", {})
+                for name in annotations:
+                    setattr(self, name, os.environ.get(name, None))
 
 
 from app.utils.exceptions import DBConfigError
@@ -155,7 +166,7 @@ class DBConfigFactory:
             msg = f"Configuration Error: {e}"
             raise DBConfigError(msg) from e
 
-    def _resolve_from_env(self) -> Optional[BaseDBConfig]:
+    def _resolve_from_env(self) -> BaseDBConfig | None:  # noqa: C901 - helper is intentionally verbose
         """Attempt to build a DB config from environment variables.
 
         This provides a lightweight integration with 12-factor env-driven
@@ -165,19 +176,19 @@ class DBConfigFactory:
 
         # Use pydantic-settings `Settings` if environment variables present.
         class Settings(BaseSettings):
-            DB_TYPE: Optional[str]
-            DB_HOST: Optional[str]
-            DB_NAME: Optional[str]
-            DB_USER: Optional[str] = None
-            DB_PW: Optional[str] = None
-            DB_PORT: Optional[int] = None
-            DB_DRIVER: Optional[str] = None
-            DB_DIALECT: Optional[str] = None
+            DB_TYPE: str | None
+            DB_HOST: str | None
+            DB_NAME: str | None
+            DB_USER: str | None = None
+            DB_PW: str | None = None
+            DB_PORT: int | None = None
+            DB_DRIVER: str | None = None
+            DB_DIALECT: str | None = None
             DB_ECHO: bool = False
 
             model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-            def sqlalchemy_url(self) -> Optional[str]:
+            def sqlalchemy_url(self) -> str | None:
                 if not self.DB_TYPE or not self.DB_HOST or not self.DB_NAME:
                     return None
                 if self.DB_TYPE == "sqlite":
@@ -221,21 +232,22 @@ class DBConfigFactory:
     # Provide a small helper to access pydantic Settings externally if desired
     @staticmethod
     def load_settings() -> BaseSettings | None:
+        """Return a Settings instance if available, otherwise `None`."""
         try:
 
             class Settings(BaseSettings):
-                DB_TYPE: Optional[str]
-                DB_HOST: Optional[str]
-                DB_NAME: Optional[str]
-                DB_USER: Optional[str] = None
-                DB_PW: Optional[str] = None
-                DB_PORT: Optional[int] = None
-                DB_DRIVER: Optional[str] = None
-                DB_DIALECT: Optional[str] = None
+                DB_TYPE: str | None
+                DB_HOST: str | None
+                DB_NAME: str | None
+                DB_USER: str | None = None
+                DB_PW: str | None = None
+                DB_PORT: int | None = None
+                DB_DRIVER: str | None = None
+                DB_DIALECT: str | None = None
                 DB_ECHO: bool = False
 
                 model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
             return Settings()
-        except Exception:
+        except (ImportError, ModuleNotFoundError):
             return None

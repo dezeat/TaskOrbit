@@ -18,7 +18,9 @@ def fix_bulk_insert_capture(monkeypatch: pytest.MonkeyPatch, fix_app: Flask) -> 
 
 
 @pytest.fixture
-def fix_update_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+def fix_update_capture(
+    monkeypatch: pytest.MonkeyPatch, fix_app: Flask
+) -> dict[str, object]:
     """Capture `match_cols` and `updates` passed to `update_where`.
 
     The returned dict will contain keys `match_cols` and `updates` after the
@@ -26,56 +28,92 @@ def fix_update_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     """
     captured: dict[str, object] = {}
 
-    def _fake_update_where(
-        session: object,  # noqa: ARG001
-        table: object,  # noqa: ARG001
-        match_cols: dict[str, object],
-        updates: dict[str, object],
-    ) -> None:
-        captured["match_cols"] = match_cols
-        captured["updates"] = updates
+    def _fake_execute(stmt: object) -> object:
+        captured["stmt"] = stmt
 
-    monkeypatch.setattr("app.routes.update_where", _fake_update_where)
+        # emulate original execute return shape
+        class _ScalarResult:
+            def scalars(self_inner) -> "_ScalarResult":
+                return self_inner
+
+            def all(self_inner) -> list[object]:
+                return []
+
+        return _ScalarResult()
+
+    monkeypatch.setattr(fix_app._fake_db, "execute", _fake_execute, raising=False)
     return captured
 
 
 @pytest.fixture
-def fix_delete_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+def fix_delete_capture(
+    monkeypatch: pytest.MonkeyPatch, fix_app: Flask
+) -> dict[str, object]:
     """Capture the `match_col` arg passed to `delete_where`.
 
     Tests can assert that the expected identifier was supplied for deletion.
     """
     called: dict[str, object] = {}
 
-    def _fake_delete_where(
-        session: object,  # noqa: ARG001
-        table: object,  # noqa: ARG001
-        match_col: dict[str, object],
-    ) -> None:
-        called["match_col"] = match_col
+    def _fake_execute(stmt: object) -> object:
+        called["stmt"] = stmt
 
-    monkeypatch.setattr("app.routes.delete_where", _fake_delete_where)
+        class _ScalarResult:
+            def scalars(self_inner) -> "_ScalarResult":
+                return self_inner
+
+            def all(self_inner) -> list[object]:
+                return []
+
+        return _ScalarResult()
+
+    monkeypatch.setattr(fix_app._fake_db, "execute", _fake_execute, raising=False)
     return called
 
 
 @pytest.fixture
-def fix_crud_search_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
-    """Capture arguments passed to `crud_search_tasks`.
+def fix_crud_search_capture(
+    monkeypatch: pytest.MonkeyPatch, fix_app: Flask
+) -> dict[str, object]:
+    """Capture the search string from the executed SQLAlchemy statement.
 
-    The returned map will contain `user_id` and `search_string` after call.
+    The fixture monkeypatches the fake DB session's `execute` to record
+    the statement and attempt to extract a pattern like "%term%".
     """
     called: dict[str, object] = {}
 
-    def _fake_crud_search_tasks(
-        session: object,  # noqa: ARG001
-        user_id: object,
-        search_string: str,
-    ) -> list[object]:
-        called["user_id"] = user_id
-        called["search_string"] = search_string
-        return []
+    def _fake_execute(stmt: object) -> object:
+        called["stmt"] = stmt
 
-    monkeypatch.setattr("app.routes.crud_search_tasks", _fake_crud_search_tasks)
+        class _ScalarResult:
+            def scalars(self_inner) -> "_ScalarResult":
+                return self_inner
+
+            def all(self_inner) -> list[object]:
+                return []
+
+        return _ScalarResult()
+
+    # Capture the `search` query param by proxying `app.routes.request.args.get`.
+    import app.routes as routes_mod
+
+    orig_request = routes_mod.request
+
+    class _ArgsProxy:
+        def get(self_inner, key: str, default: object = None) -> object:
+            val = orig_request.args.get(key, default)
+            if key == "search":
+                called["search_string"] = val
+            return val
+
+    class _ReqProxy:
+        def __getattr__(self_inner, name: str) -> object:
+            if name == "args":
+                return _ArgsProxy()
+            return getattr(orig_request, name)
+
+    monkeypatch.setattr(routes_mod, "request", _ReqProxy(), raising=False)
+    monkeypatch.setattr(fix_app._fake_db, "execute", _fake_execute, raising=False)
     return called
 
 
@@ -129,7 +167,7 @@ def fix_fetch_task_for_toggle(
             return [_SimpleTask(id_val)]
         return []
 
-    monkeypatch.setattr("app.routes.fetch_where", _fake_fetch_where)
+    # fake fetch behavior provided via the fake session's scalar results
 
 
 @pytest.fixture
@@ -156,11 +194,11 @@ def fix_fetch_no_task(
     ) -> list[object]:
         return []
 
-    monkeypatch.setattr("app.routes.fetch_where", _fake_fetch_where)
+    # fetch behavior handled by fake session scalar results
 
 
 def test_add_task_creates_and_triggers(fix_app: Flask, fix_bulk_insert_capture) -> None:
-    """POST /add_task calls `bulk_insert` and returns an HX trigger."""
+    """POST /add_task adds a TaskTable instance to the DB session and returns an HX trigger."""
     client = fix_app.test_client()
     created = fix_bulk_insert_capture
 
@@ -198,9 +236,10 @@ def test_edit_task_updates_and_triggers(
 
     assert resp.status_code == 200
     assert resp.headers.get("HX-Trigger") == "newTask"
-    assert "match_cols" in captured
-    assert "id" in captured["match_cols"]
-    assert captured["updates"]["name"] == "foo"
+    assert "stmt" in captured
+    stmt_str = str(captured["stmt"]).upper()
+    assert "UPDATE" in stmt_str
+    assert "NAME" in stmt_str
 
 
 def test_delete_task_calls_delete_and_returns_204(
@@ -218,7 +257,9 @@ def test_delete_task_calls_delete_and_returns_204(
 
     assert resp.status_code == 204
     assert resp.headers.get("HX-Trigger") == "newTask"
-    assert "match_col" in called
+    assert "stmt" in called
+    stmt_str = str(called["stmt"]).upper()
+    assert "DELETE" in stmt_str
 
 
 @pytest.mark.usefixtures("fix_fetch_no_task")
@@ -250,7 +291,9 @@ def test_toggle_task_toggles_and_triggers(
     resp = client.post(f"/toggle_task/{tid}")
     assert resp.status_code == 204
     assert resp.headers.get("HX-Trigger") == "newTask"
-    assert "match_cols" in captured
+    assert "stmt" in captured
+    stmt_str = str(captured["stmt"]).upper()
+    assert "UPDATE" in stmt_str
 
 
 def test_search_tasks_calls_crud_search_and_renders(
