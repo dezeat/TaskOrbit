@@ -1,51 +1,77 @@
-PYTHON = python3
-POETRY = poetry
+# --- Variables ---
+PYTHON := python3
+POETRY := poetry
 
+# Defaults (can be overridden via environment variables)
 DB_CONFIG ?= app/utils/db/default_db_config.yaml
-SQLITE_PATH ?= app/default_sqlite.db
+HOST ?= 127.0.0.1
+PORT ?= 5000
 
-# Simple project tasks
-.PHONY: setup start dev init-db reset-db seed-db launch format lint type test clean
+# Extract the database path from the yaml config for safe deletion
+# This reads the 'host' and 'name' keys from the yaml and combines them.
+DB_PATH := $(shell grep "host:" $(DB_CONFIG) | awk '{print $$2}')/$(shell grep "name:" $(DB_CONFIG) | awk '{print $$2}')
 
-setup:
-	@echo "Poetry is available. Run 'poetry install' if dependencies are missing."
+# --- Phony Targets ---
+.PHONY: help setup start dev seed reset launch format lint type test clean check
 
-# Start without debug (uses env vars if set)
-start:
-	@echo "Starting app..."
-	$(POETRY) run $(PYTHON) main.py $(DB_CONFIG)
+# --- Default Target ---
+help: ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-# Dev server on localhost:5000
-dev:
-	@echo "Starting dev server on http://127.0.0.1:5000"
-	FLASK_DEBUG=1 FLASK_HOST=127.0.0.1 FLASK_PORT=5000 $(POETRY) run $(PYTHON) main.py $(DB_CONFIG)
+# --- Setup & Run ---
+setup: ## Install dependencies using Poetry
+	@echo "Installing dependencies..."
+	$(POETRY) install
 
-# Initialize / seed DB (idempotent)
-init-db:
-	@echo "Seeding database..."
-	@$(POETRY) run $(PYTHON) main.py $(DB_CONFIG) --init-db
+start: ## Start the app in production mode
+	@echo "Starting app (Production Mode)..."
+	FLASK_DEBUG=0 $(POETRY) run $(PYTHON) main.py $(DB_CONFIG)
 
-# Remove sqlite DB file so next run starts fresh
-reset-db:
-	@rm -f $(SQLITE_PATH)
-	@echo "Removed $(SQLITE_PATH)"
+dev: ## Start the app in development mode with auto-reload
+	@echo "Starting dev server on http://$(HOST):$(PORT)"
+	FLASK_DEBUG=1 FLASK_HOST=$(HOST) FLASK_PORT=$(PORT) $(POETRY) run $(PYTHON) main.py $(DB_CONFIG)
 
-# Reset, seed and start dev server
-launch: reset-db init-db dev
+# --- Database Management ---
+seed: ## Seed the database with initial data
+	@echo "Seeding database from $(DB_CONFIG)..."
+	$(POETRY) run $(PYTHON) -m app.utils.db.seed $(DB_CONFIG)
 
-# Formatting and checks
-format:
-	@$(POETRY) run ruff format .
+reset: ## Delete the SQLite database file
+	@if [ -f "$(DB_PATH)" ]; then \
+		rm "$(DB_PATH)"; \
+		echo "Deleted database at $(DB_PATH)"; \
+	else \
+		echo "No database found at $(DB_PATH) to delete."; \
+	fi
 
-lint:
-	@$(POETRY) run ruff check .
+rebuild: reset seed ## Delete DB, re-seed, and get ready
+	@echo "Database rebuild complete."
 
-type:
-	@$(POETRY) run mypy ./app
+launch: rebuild dev ## Reset DB, seed, and start dev server
 
-test:
-	@$(POETRY) run pytest
+# --- Quality Assurance ---
+format: ## Run Ruff to format code
+	@echo "Formatting code..."
+	$(POETRY) run ruff format .
 
-clean:
-	@rm -f $(SQLITE_PATH)
-	@echo "Cleaned project artifacts"
+lint: ## Run Ruff to check for linting errors
+	@echo "Linting code..."
+	$(POETRY) run ruff check .
+
+type: ## Run Mypy for static type checking
+	@echo "Checking types..."
+	$(POETRY) run mypy ./app
+
+test: ## Run tests with Pytest
+	@echo "Running tests..."
+	$(POETRY) run pytest
+
+check: format lint type test ## Run all QA checks (format, lint, type, test)
+
+clean: ## Clean up cache and temporary files
+	@echo "Cleaning artifacts..."
+	@rm -rf .pytest_cache
+	@rm -rf .mypy_cache
+	@rm -rf .ruff_cache
+	@find . -type d -name "__pycache__" -exec rm -rf {} +
+	@echo "Done."

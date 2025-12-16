@@ -29,12 +29,7 @@ BaseDBConfigType = TypeVar("BaseDBConfigType", bound=BaseDBConfig)
 
 @dataclass
 class BaseDB(Generic[BaseDBConfigType]):
-    """Abstract base for database wrappers providing setup helpers.
-
-    Concrete subclasses must provide a `_check_conn` implementation. The
-    class exposes methods to build an engine, manage table objects and
-    produce scoped sessions.
-    """
+    """Abstract base for database wrappers providing setup helpers."""
 
     config: BaseDBConfig
     _valid_db_type: ClassVar[DatabaseType]
@@ -46,7 +41,8 @@ class BaseDB(Generic[BaseDBConfigType]):
     def engine(cls) -> Engine:
         """Return the SQLAlchemy engine for this DB, creating it if needed."""
         if cls._engine is None:
-            cls._engine = create_engine(cls.config.url, echo=True)
+            # --- FIX: Use the echo setting from config ---
+            cls._engine = create_engine(cls.config.url, echo=cls.config.echo)
         return cls._engine
 
     @classmethod
@@ -115,34 +111,34 @@ class BaseDB(Generic[BaseDBConfigType]):
         """Verify that the database is reachable and return connection state."""
 
 
-    class SQLiteDB(BaseDB[LocalDBConfig]):
-        """SQLite backend implementation for local file databases.
-
-        Ensures the sqlite file exists and provides a session/engine for the
-        rest of the application.
-        """
+class SQLiteDB(BaseDB[LocalDBConfig]):
+    """SQLite backend implementation for local file databases."""
 
     config: LocalDBConfig
-    _valid_db_type: ClassVar[DatabaseType] = DatabaseType.SQLLITE
+    _valid_db_type: ClassVar[DatabaseType] = DatabaseType.SQLITE
 
     @classmethod
     def _check_conn(cls) -> bool:
         """Checks if the SQLite database file exists."""
-        _exists = Path(cls.config.url).is_file()
+        # --- FIX: Clean path string for correct file checking ---
+        db_path_str = cls.config.url.replace("sqlite:///", "")
+        
+        # Handle absolute paths edge case (sqlite:////)
+        if cls.config.url.startswith("sqlite:////"):
+             db_path_str = cls.config.url.replace("sqlite:////", "/")
+
+        _exists = Path(db_path_str).is_file()
 
         if not _exists:
-            cls.engine()
-            msg = f"SQLlite db-file not found in {cls.config.url}. Created new."
+            cls.engine().connect()  # Triggers file creation
+            msg = f"Sqlite db-file not found at {db_path_str}. Created new."
             logger.info(msg)
 
         return _exists
 
 
 class PostgresDB(BaseDB[ServerDBConfig]):
-    """Postgres backend implementation that verifies connectivity.
-
-    Attempts a simple query to confirm the server is reachable.
-    """
+    """Postgres backend implementation that verifies connectivity."""
 
     config: ServerDBConfig
     _valid_db_type: ClassVar[DatabaseType] = DatabaseType.POSTGRESQL
@@ -152,7 +148,7 @@ class PostgresDB(BaseDB[ServerDBConfig]):
         """Checks if the database is reachable by executing a simple query."""
         try:
             cls.engine().connect().execute(text("SELECT 1"))
-            return True  # noqa: TRY300
+            return True  
 
         except SQLAlchemyError as e:
             msg = f"Database connection failed: {e}"
@@ -160,10 +156,7 @@ class PostgresDB(BaseDB[ServerDBConfig]):
 
 
 def db_factory(config: BaseDBConfig) -> type[BaseDB]:
-    """Return a configured `BaseDB` subclass for the given config.
-
-    Chooses a concrete backend based on the provided `BaseDBConfig` type.
-    """
+    """Return a configured `BaseDB` subclass for the given config."""
     if isinstance(config, LocalDBConfig):
         return SQLiteDB.setup(config)
 
