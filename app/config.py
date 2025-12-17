@@ -26,8 +26,10 @@ class AppConfig(BaseSettings):
     Automatically loads values from environment variables or a `.env` file.
     """
 
-    # This configuration disables .env file reading
-    model_config = SettingsConfigDict(env_file=None)
+    # Read values from the project's `.env` file by default
+    # Allow/ignore extra env vars (like POSTGRES_*) so local docker envs
+    # won't cause validation errors when they are present in the environment.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     FLASK_HOST: str = "127.0.0.1"
     FLASK_PORT: int = 5000

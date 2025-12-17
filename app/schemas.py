@@ -38,7 +38,7 @@ class UserPublic(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: UUID | None = None
     last_login_ts: datetime | None = None
 
 
@@ -50,7 +50,7 @@ class TaskSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
+    id: UUID | None = None
     user_id: UUID
     name: str = Field(min_length=1)
     description: str | None = None

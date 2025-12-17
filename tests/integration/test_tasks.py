@@ -10,6 +10,7 @@ validation error, reflecting the app's current behavior.
 import uuid
 
 from flask.testing import FlaskClient
+from sqlalchemy import select
 
 from app.models import TaskTable
 from tests.conftest import TestApp
@@ -43,7 +44,7 @@ def test_add_task_flow(fix_auth_client: FlaskClient, fix_app: TestApp) -> None:
 
         with fix_app.app_context():
             task = fix_app.test_db_session.scalars(
-                TaskTable.__table__.select().where(TaskTable.name == "Integration Task")
+                select(TaskTable).where(TaskTable.name == "Integration Task")
             ).first()
             assert task is not None
             assert task.description == "Test Desc"
