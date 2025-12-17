@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Main (Poetry)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "/home/dazime/.cache/pypoetry/virtualenvs/taskorbit-6-qzSYHI-py3.12/bin/python",
+            "env": {
+                "FLASK_DEBUG": "1",
+                "PYTHONUNBUFFERED": "1"
+            },
+            "justMyCode": true
+        }
+    ]
+}

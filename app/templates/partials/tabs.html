@@ -1,4 +1,4 @@
-<div class="flex border-b border-gray-200 mb-4" id="task-tabs">
+<div class="flex border-b border-gray-200 mb-4" id="task-tabs" hx-swap-oob="true">
     <button 
         class="flex-1 py-3 text-sm font-medium text-center focus:outline-none transition-colors duration-200
                {% if current_tab == 'active' %}
@@ -7,8 +7,7 @@
                    border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300
                {% endif %}"
         hx-get="/task_list?status=active"
-        hx-target="#task-list" 
-        hx-swap="innerHTML">
+        hx-target="#task-list">
         Active
     </button>
 
@@ -20,8 +19,7 @@
                    border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300
                {% endif %}"
         hx-get="/task_list?status=done"
-        hx-target="#task-list"
-        hx-swap="innerHTML">
+        hx-target="#task-list">
         Accomplished
     </button>
 </div>

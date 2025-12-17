@@ -1,3 +1,0 @@
-"""Database utilities package."""
-
-# ...existing code...

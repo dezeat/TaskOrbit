@@ -17,7 +17,7 @@
 
       <div>
         <label for="reg-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-        <input id="reg-password" type="password" required class="w-full px-3 py-2 border rounded" />
+        <input id="reg-password" name="password" type="password" required class="w-full px-3 py-2 border rounded" />
       </div>
 
       <div>
@@ -25,8 +25,7 @@
         <input id="reg-password-confirm" type="password" required class="w-full px-3 py-2 border rounded" />
       </div>
 
-      <!-- Hidden field that will hold the hashed password before submission -->
-      <input type="hidden" id="reg-password-hash" name="password" />
+      <!-- Plain password is submitted; hashing happens server-side. -->
 
       <div class="flex justify-end">
         <button type="button" id="reg-cancel" class="mr-2 px-4 py-2 rounded border">Cancel</button>

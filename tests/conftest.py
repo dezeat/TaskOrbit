@@ -1,56 +1,118 @@
-"""Pytest configuration and fixtures for tests."""
+"""Pytest fixtures for TaskOrbit tests.
 
-import sys
+This module provides reusable fixtures used across unit and integration
+tests.
+
+The fixtures purposely avoid importing the application factory module at
+import time to prevent side-effects (such as database connections or
+configuration evaluation) leaking into the test runner.
+"""
+
 from pathlib import Path
+from typing import Any as TypingAny
+from typing import Callable, ContextManager, Generator, Protocol, cast
 
 import pytest
-from flask import Flask, g
+from flask import Flask
+from flask.testing import FlaskClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
+from app.models import BaseTable, UserTable
 from app.routes import bp as main_bp
+from app.utils.security import hash_password
 
 
-@pytest.fixture
-def fix_app() -> Flask:
-    """Flask app with main blueprint registered."""
-    _app = Flask(__name__)
+class TestApp(Protocol):
+    """Minimal Protocol describing the test Flask app used in fixtures.
 
-    _app.secret_key = "test-secret"  # noqa: S105
-    _app.register_blueprint(main_bp)
-    return _app
-
-
-@pytest.fixture
-def fix_db_and_auth(fix_app: Flask) -> None:
-    """Attach a fake DB session object to `g` for request handling.
-
-    This fixture ensures route handlers that expect `g.db_session` can run
-    without a real database in the test environment.
+    Allows attaching test-only attributes like ``test_db_session`` while
+    keeping static type-checkers satisfied.
     """
 
+    # Core attributes/methods used by the tests
+    config: dict
+    test_db_session: scoped_session
+    register_blueprint: Callable[[TypingAny], None]
+    app_context: Callable[[], ContextManager[TypingAny]]
+    before_request: Callable[[Callable[..., TypingAny]], None]
+    teardown_appcontext: Callable[[Callable[..., TypingAny]], None]
+    test_client: Callable[..., TypingAny]
+
+
+@pytest.fixture
+def fix_app() -> Generator[TestApp, None, None]:
+    """Create a Flask application instance configured for testing.
+
+    Uses an in-memory SQLite engine and a scoped session bound to that engine.
+    """
+    test_config = {
+        "TESTING": True,
+        "WTF_CSRF_ENABLED": False,
+    }
+
+    # Create a dedicated in-memory engine for tests
+    test_engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+    )
+    test_db_session = scoped_session(
+        sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    )
+
+    # Build a lightweight Flask app instance without importing app.app
+    # Use the application's templates folder so Jinja can find templates like
+    # 'login.html' used by the routes.
+    templates_path = Path.cwd() / "app" / "templates"
+    # Create a Flask app and cast it to TestApp so type-checkers accept
+    # attaching the `test_db_session` attribute below.
+    app = cast(TestApp, Flask(__name__, template_folder=str(templates_path)))
+    app.config.update(test_config)
+    app.config["SECRET_KEY"] = "test-secret"  # noqa: S105
+
+    # Register the application's blueprint so routes are available
+    app.register_blueprint(main_bp)
+
+    # Attach the test session to the app for access in other fixtures/tests
+    app.test_db_session = test_db_session
+
+    # Create tables on the test engine
+    with app.app_context():
+        BaseTable.metadata.create_all(bind=test_engine)
+        yield app
+        test_db_session.remove()
+        BaseTable.metadata.drop_all(bind=test_engine)
+
+
+@pytest.fixture
+def fix_client(fix_app: TestApp) -> FlaskClient:
+    """Return a standard Flask test client."""
+
+    # Ensure each request has access to the test session via g.db_session
     @fix_app.before_request
-    def _attach_db_session() -> None:
-        g.db_session = object()
+    def _attach_session() -> None:
+        from flask import g
+
+        g.db_session = fix_app.test_db_session
+
+    @fix_app.teardown_appcontext
+    def _remove_session(exception: Exception | None) -> None:  # noqa: ARG001
+        fix_app.test_db_session.remove()
+
+    return fix_app.test_client()
 
 
 @pytest.fixture
-def fix_fetch_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Default `fetch_where` used by tests that don't override it."""
+def fix_auth_client(fix_client: FlaskClient, fix_app: TestApp) -> FlaskClient:
+    """Return a Flask test client authenticated with a standard user.
 
-    def _fake_fetch_where(
-        session: object,  # noqa: ARG001
-        table: object,  # noqa: ARG001
-        filter_map: dict[str, object],  # noqa: ARG001
-    ) -> list[object]:
-        from app.utils.db.models import User
+    Seeds the in-memory DB with a test user and logs in so the client has a
+    valid session.
+    """
+    with fix_app.app_context():
+        user = UserTable(name="testuser", hashed_password=hash_password("password123"))
+        fix_app.test_db_session.add(user)
+        fix_app.test_db_session.commit()
 
-        return [User(name="foo", hashed_password="bar")]  # noqa: S106
+    fix_client.post("/login", data={"username": "testuser", "password": "password123"})
 
-    monkeypatch.setattr("app.routes.fetch_where", _fake_fetch_where)
-
-
-@pytest.fixture
-def fix_stub_render(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stub `render_template` to avoid template loading during tests."""
-    monkeypatch.setattr("app.routes.render_template", lambda *a, **k: "")  # noqa: ARG005
+    return fix_client
