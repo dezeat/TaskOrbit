@@ -37,5 +37,8 @@ jobs:
       - name: mypy
         run: poetry run mypy ./app
 
+      - name: Smoke Test (App Startup)
+        run: bash ./development/smoke_test.sh
+
       - name: pytest
-        run: poetry run pytest -q
+        run: poetry run pytest --cov=app --cov-report=term-missing

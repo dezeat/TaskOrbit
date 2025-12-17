@@ -26,6 +26,13 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: smoke-test
+        name: Smoke Test (App Startup)
+        entry: bash ./development/smoke_test.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: pytest
         name: pytest
         entry: poetry run pytest -q

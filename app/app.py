@@ -24,7 +24,7 @@ app_config = get_config()
 # Define the database engine globally to allow models and routes to import it
 # without circular dependency issues.
 engine = create_engine(
-    app_config.SQLALCHEMY_DATABASE_URI,
+    url=app_config.SQLALCHEMY_DATABASE_URI,
     echo=app_config.DB_ECHO,
     pool_pre_ping=True,
 )

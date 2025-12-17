@@ -3,6 +3,7 @@
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
+from typing import cast
 
 from pydantic import MySQLDsn, PostgresDsn, computed_field
 from pydantic_settings import (  # type: ignore  # noqa: PGH003
@@ -44,9 +45,8 @@ class AppConfig(BaseSettings):
     DB_PASS: str | None = None
     DB_ECHO: bool = False
 
-    @property
     @computed_field
-    def SQLALCHEMY_DATABASE_URI(self) -> str:  # noqa: N802
+    def sqlalchemy_database_uri(self) -> str:
         """Construct the SQLAlchemy connection string.
 
         Logic:
@@ -88,6 +88,11 @@ class AppConfig(BaseSettings):
 
         msg = f"Unsupported DB_TYPE: {self.DB_TYPE}"
         raise ValueError(msg)
+
+    @property
+    def SQLALCHEMY_DATABASE_URI(self) -> str:  # noqa: N802
+        """Alias for uppercase method for compatibility with Flask/SQLAlchemy."""
+        return cast(str, self.sqlalchemy_database_uri)
 
 
 @lru_cache

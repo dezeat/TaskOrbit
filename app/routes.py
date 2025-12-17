@@ -220,11 +220,7 @@ def home() -> WResponse | str:
 @bp.route("/task_list", methods=["GET"])
 @login_required
 def task_list() -> WResponse | str:
-    """Return the task list HTML partial.
-
-    Used by HTMX to refresh the list without reloading the full page.
-    Supports filtering via the 'status' query parameter.
-    """
+    """Return the task list HTML partial with Out-of-Band tab updates."""
     status = request.args.get("status", "active")
     is_completed = status == "done"
 
@@ -239,7 +235,11 @@ def task_list() -> WResponse | str:
         )
     tasks = g.db_session.scalars(stmt).all()
 
-    return render_template("/partials/task_list.html", tasks=tasks, current_tab=status)
+    # Concatenate the tabs and the list.
+    # HTMX uses the hx-swap-oob="true" in tabs.html to update the blue line.
+    return render_template("partials/tabs.html", current_tab=status) + render_template(
+        "partials/task_list.html", tasks=tasks
+    )
 
 
 @bp.route("/toggle_task/<task_id>", methods=["POST"])
