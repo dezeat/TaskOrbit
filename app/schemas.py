@@ -4,15 +4,10 @@ These use Pydantic v2 `from_attributes` conversion to accept ORM objects
 directly when building DTOs for templates and API responses.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-
-if TYPE_CHECKING:
-    from datetime import datetime
-    from uuid import UUID
 
 
 class UserSchema(BaseModel):

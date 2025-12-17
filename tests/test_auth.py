@@ -38,7 +38,7 @@ def fix_fake_user() -> SimpleNamespace:
 def fix_mock_db_with_user(
     monkeypatch: pytest.MonkeyPatch,
     fix_db_and_auth,
-    fix_fake_user: User,
+    fix_fake_user: SimpleNamespace,
     fix_app: Flask,
 ) -> None:
     """Patch DB fetch to return the provided `fix_fake_user` for name lookups."""
@@ -73,7 +73,9 @@ def test_register_creates_user(
 
 
 @pytest.mark.usefixtures("fix_mock_db_with_user")
-def test_login_rejects_wrong_password(fix_app: Flask, fix_fake_user: User) -> None:
+def test_login_rejects_wrong_password(
+    fix_app: Flask, fix_fake_user: SimpleNamespace
+) -> None:
     """Login rejects an incorrect hashed password."""
     client = fix_app.test_client()
     resp = client.post(
@@ -84,7 +86,9 @@ def test_login_rejects_wrong_password(fix_app: Flask, fix_fake_user: User) -> No
 
 
 @pytest.mark.usefixtures("fix_mock_db_with_user")
-def test_login_accepts_correct_password(fix_app: Flask, fix_fake_user: User) -> None:
+def test_login_accepts_correct_password(
+    fix_app: Flask, fix_fake_user: SimpleNamespace
+) -> None:
     """Login accepts the correct hashed password and redirects."""
     client = fix_app.test_client()
     # Send the raw password; server verifies against stored hash
