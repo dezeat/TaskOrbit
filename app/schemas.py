@@ -15,7 +15,7 @@ class UserSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID | None = None
+    id: UUID
     name: str
     hashed_password: str
     last_login_ts: datetime | None = None
@@ -25,7 +25,7 @@ class TaskSchema(BaseModel):
     """Schema for task objects exposed by the API."""
 
     model_config = ConfigDict(from_attributes=True)
-    id: UUID | None = None
+    id: UUID
     user_id: UUID
     name: str
     description: str | None = None

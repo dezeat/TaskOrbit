@@ -4,6 +4,7 @@ from abc import abstractmethod
 from datetime import datetime
 from uuid import UUID as UUIDTYPE
 
+from flask_login import UserMixin  # type: ignore  # noqa: PGH003
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID as UUIDCOLUMN
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -26,7 +27,7 @@ class BaseTable(DeclarativeBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        server_default=func.now(),  # Use SQLAlchemy's built-in function
+        server_default=func.now(),
         sort_order=9999,
     )
 
@@ -34,8 +35,8 @@ class BaseTable(DeclarativeBase):
         DateTime,
         nullable=True,
         index=True,
-        server_default=func.now(),  # Use SQLAlchemy's built-in function
-        server_onupdate=func.now(),  # Use SQLAlchemy's built-in function
+        server_default=func.now(),
+        server_onupdate=func.now(),
         sort_order=10000,
     )
 
@@ -44,7 +45,8 @@ class BaseTable(DeclarativeBase):
         """Return a string representation of the object."""
 
 
-class UserTable(BaseTable):
+# 2. Inherit from UserMixin
+class UserTable(UserMixin, BaseTable):
     """Database model for storing user information."""
 
     __tablename__ = "user"
@@ -53,7 +55,8 @@ class UserTable(BaseTable):
     last_login_ts: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
 
     # One-to-Many relationship with TaskTable
-    tasks: Mapped[list["TaskTable"]] = relationship(back_populates="users")
+    # 'tasks' is plural (User has many tasks) -> Correct
+    tasks: Mapped[list["TaskTable"]] = relationship(back_populates="user")
 
     def __repr__(self) -> str:
         """Return a string representation of the UserTable object."""
@@ -74,7 +77,8 @@ class TaskTable(BaseTable):
     ts_deadline: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
 
     # Many-to-One relationship with UserTable
-    users: Mapped["UserTable"] = relationship(back_populates="tasks")
+    # 3. Renamed to 'user' (singular)
+    user: Mapped["UserTable"] = relationship(back_populates="tasks")
 
     def __repr__(self) -> str:
         """Return a string representation of the TaskTable object."""

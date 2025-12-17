@@ -1,14 +1,11 @@
 
 
 PYTHON := python3
-DB_CONFIG ?= app/utils/db/default_db_config.yaml
-HOST ?= 127.0.0.1
-PORT ?= 5000
-DB_PATH := $(shell grep "host:" $(DB_CONFIG) | awk '{print $$2}')/$(shell grep "name:" $(DB_CONFIG) | awk '{print $$2}')
+DB_FILE := taskorbit.db
 
-.PHONY: help setup start dev seed reset rebuild launch format ruff-check lint type test check clean checkfix
+.PHONY: help setup start dev seed reset rebuild launch format lint type test check clean
 
-## Show this help message
+## Show help
 help:
 	@awk 'BEGIN {FS = ":"} /^## /{desc=substr($$0,4); getline; if ($$0 ~ /^[a-zA-Z0-9_-]+:/) {split($$0,a,":"); printf "\033[36m%-20s\033[0m %s\n", a[1], desc}}' $(MAKEFILE_LIST)
 
@@ -18,24 +15,29 @@ setup:
 
 ## Start app (prod)
 start:
-	FLASK_DEBUG=0 poetry run $(PYTHON) main.py $(DB_CONFIG)
+	FLASK_DEBUG=0 poetry run $(PYTHON) main.py
 
-## Start app (dev)
+## Start app (dev) - Relies on AppSettings defaults or .env file
 dev:
-	FLASK_DEBUG=1 FLASK_HOST=$(HOST) FLASK_PORT=$(PORT) poetry run $(PYTHON) main.py $(DB_CONFIG)
+	# We force DEBUG=1, but Host/Port come from AppSettings/Env
+	FLASK_DEBUG=1 poetry run $(PYTHON) main.py
 
 ## Seed database
 seed:
-	poetry run $(PYTHON) -m app.utils.db.seed $(DB_CONFIG)
+	poetry run $(PYTHON) -m development.seed
 
-## Delete SQLite DB file
+# query the dev db
+query:
+	poetry run $(PYTHON) -m development.query
+
+## Reset DB file
 reset:
-	@if [ -f "$(DB_PATH)" ]; then rm "$(DB_PATH)"; fi
+	rm -f $(DB_FILE)
 
-## Reset DB and seed
+## Full Rebuild
 rebuild: reset seed
 
-## Reset DB, seed, and start dev server
+## Launch Dev
 launch: rebuild dev
 
 ## Format code

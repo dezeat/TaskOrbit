@@ -1,4 +1,0 @@
-type: sqlite
-host: app
-name: default_sqlite.db
-echo: false  
