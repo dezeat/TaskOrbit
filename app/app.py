@@ -15,9 +15,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app.config import get_config
+from app.models import BaseTable
 from app.routes import bp as main_bp
 from app.utils.logger import logger
-from app.utils.models import BaseTable
 
 app_config = get_config()
 

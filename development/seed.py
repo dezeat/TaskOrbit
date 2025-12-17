@@ -16,8 +16,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.models import BaseTable, TaskTable, UserTable
 from app.utils.logger import logger
-from app.utils.models import BaseTable, TaskTable, UserTable
 from app.utils.security import hash_password
 
 DB_URL = "sqlite:///taskorbit.db"

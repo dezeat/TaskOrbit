@@ -32,13 +32,14 @@ from flask import (
     url_for,
 )
 from jinja2 import TemplateNotFound
+from pydantic import ValidationError
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.wrappers import Response as WResponse
 
-from app.schemas import TaskSchema, UserSchema
+from app.models import TaskTable, UserTable
+from app.schemas import TaskSchema, UserCreate
 from app.utils.logger import logger
-from app.utils.models import TaskTable, UserTable
 from app.utils.security import hash_password, verify_password
 
 bp = Blueprint("main", __name__)
@@ -63,12 +64,20 @@ def login_required(f: Callable[..., WResponse | str]) -> Callable[..., WResponse
 
     @wraps(f)
     def decorated_function(*args: object, **kwargs: object) -> WResponse | str:
-        if "uid" not in session:
+        uid = session.get("uid")
+        if not uid:
             return _handle_unauthorized()
 
         try:
-            user_obj = g.db_session.get(UserTable, session["uid"])
-        except (SQLAlchemyError, AttributeError, KeyError, TypeError) as exc:
+            # Ensure uid is treated as a UUID for DB lookups
+            user_obj = g.db_session.get(UserTable, UUID(str(uid)))
+        except (
+            SQLAlchemyError,
+            AttributeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as exc:
             logger.exception("Error validating session user: %s", exc)
             session.clear()
             return _handle_unauthorized()
@@ -128,8 +137,9 @@ def login() -> WResponse | str:
 def register() -> WResponse | str:
     """Register a new user account.
 
-    Validates that the username is unique. If valid, hashes the password
-    server-side, persists the new user, and commits the transaction.
+    Validates that the username is unique and input meets schema requirements.
+    If valid, hashes the password server-side, persists the new user, and
+    commits the transaction.
     """
     result: WResponse | str | None = None
 
@@ -139,32 +149,34 @@ def register() -> WResponse | str:
     username = request.form.get("username")
     password = request.form.get("password")
 
-    if not username or not password:
-        result = render_template("partials/register_popup.html", error="Missing fields")
-    else:
-        existing = g.db_session.scalars(
-            select(UserTable).where(UserTable.name == username)
-        ).first()
+    try:
+        user_input = UserCreate(name=username or "", password=password or "")
+    except ValidationError:
+        return render_template(
+            "partials/register_popup.html", error="Invalid input (Password min 8 chars)"
+        )
 
-        if existing:
+    existing = g.db_session.scalars(
+        select(UserTable).where(UserTable.name == user_input.name)
+    ).first()
+
+    if existing:
+        result = render_template("partials/register_popup.html", error="User exists")
+    else:
+        hashed = hash_password(user_input.password)
+        new_user = UserTable(name=user_input.name, hashed_password=hashed)
+
+        try:
+            g.db_session.add(new_user)
+            g.db_session.commit()
+            result = redirect(url_for("main.login"))
+
+        except SQLAlchemyError as exc:
+            g.db_session.rollback()
+            logger.exception("Error creating user: %s", exc)
             result = render_template(
-                "partials/register_popup.html", error="User exists"
+                "partials/register_popup.html", error="Could not create user"
             )
-        else:
-            hashed = hash_password(password)
-            user_schema = UserSchema.model_validate(
-                {"name": username, "hashed_password": hashed}
-            )
-            try:
-                g.db_session.add(UserTable(**user_schema.model_dump()))
-                g.db_session.commit()
-                result = redirect(url_for("main.login"))
-            except SQLAlchemyError as exc:
-                g.db_session.rollback()
-                logger.exception("Error creating user: %s", exc)
-                result = render_template(
-                    "partials/register_popup.html", error="Could not create user"
-                )
 
     if result is None:
         result = make_response("", 200)
@@ -190,6 +202,7 @@ def home() -> WResponse | str:
     status = request.args.get("status", "active")
     is_completed = status == "done"
 
+    # session['uid'] is safe here due to @login_required decorator
     stmt = select(TaskTable).where(TaskTable.user_id == UUID(str(session["uid"])))
     if is_completed:
         stmt = stmt.where(TaskTable.ts_acomplished.is_not(None)).order_by(
@@ -215,7 +228,7 @@ def task_list() -> WResponse | str:
     status = request.args.get("status", "active")
     is_completed = status == "done"
 
-    stmt = select(TaskTable).where(TaskTable.user_id == session["uid"])
+    stmt = select(TaskTable).where(TaskTable.user_id == UUID(str(session["uid"])))
     if is_completed:
         stmt = stmt.where(TaskTable.ts_acomplished.is_not(None)).order_by(
             TaskTable.ts_acomplished.desc()
@@ -237,7 +250,11 @@ def toggle_task(task_id: str) -> WResponse:
     Updates the `ts_acomplished` timestamp. If the task is done, it resets
     it to None (active); otherwise, it sets it to the current UTC time.
     """
-    task_uid = UUID(task_id)
+    try:
+        task_uid = UUID(task_id)
+    except ValueError:
+        return make_response("Invalid ID", 400)
+
     task = g.db_session.get(TaskTable, task_uid)
 
     if task:
@@ -265,7 +282,7 @@ def search_tasks() -> WResponse | str:
     pattern = f"%{search_string}%"
     stmt = select(TaskTable).where(
         and_(
-            TaskTable.user_id == session["uid"],
+            TaskTable.user_id == UUID(str(session["uid"])),
             or_(TaskTable.name.ilike(pattern), TaskTable.description.ilike(pattern)),
         )
     )
@@ -292,16 +309,20 @@ def add_task() -> WResponse:
     and commits the transaction. Returns an empty response with an HTMX
     trigger to refresh the list.
     """
-    task_schema = TaskSchema.model_validate(
-        {
-            "name": request.form.get("name") or "",
-            "user_id": session["uid"],
-            "description": request.form.get("description"),
-        }
-    )
-
-    g.db_session.add(TaskTable(**task_schema.model_dump()))
-    g.db_session.commit()
+    try:
+        task_schema = TaskSchema.model_validate(
+            {
+                "name": request.form.get("name") or "",
+                "user_id": session["uid"],
+                "description": request.form.get("description"),
+            }
+        )
+        g.db_session.add(TaskTable(**task_schema.model_dump(exclude={"id"})))
+        g.db_session.commit()
+    except ValidationError as exc:
+        logger.error("Validation error adding task: %s", exc)
+        # In a real app, return a 400 or form error here.
+        return make_response("Invalid input", 400)
 
     response = make_response(
         render_template("partials/task_popup.html", show_popup=False)
@@ -321,7 +342,11 @@ def close_add_task() -> str:
 @login_required
 def delete_task(task_id: str) -> WResponse:
     """Permanently delete a task."""
-    task_uid = UUID(task_id)
+    try:
+        task_uid = UUID(task_id)
+    except ValueError:
+        return make_response("Invalid ID", 400)
+
     stmt = delete(TaskTable).where(TaskTable.id == task_uid)
     g.db_session.execute(stmt)
     g.db_session.commit()
@@ -335,7 +360,11 @@ def delete_task(task_id: str) -> WResponse:
 @login_required
 def show_edit_task(task_id: str) -> WResponse | str:
     """Return the 'Edit Task' modal partial pre-filled with data."""
-    task_uid = UUID(task_id)
+    try:
+        task_uid = UUID(task_id)
+    except ValueError:
+        return make_response("Invalid ID", 400)
+
     task = g.db_session.get(TaskTable, task_uid)
     if not task:
         return make_response("", 404)
@@ -347,7 +376,10 @@ def show_edit_task(task_id: str) -> WResponse | str:
 @login_required
 def edit_task(task_id: str) -> WResponse:
     """Update an existing task's details."""
-    task_uid = UUID(task_id)
+    try:
+        task_uid = UUID(task_id)
+    except ValueError:
+        return make_response("Invalid ID", 400)
 
     updates = {
         "name": request.form.get("name") or "",

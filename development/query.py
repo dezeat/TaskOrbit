@@ -1,131 +1,194 @@
-"""Standalone SQLite Query Utility.
+"""Standalone Interactive SQLite Query Utility."""
 
-Allows querying the app database without initializing the Flask application context,
-bypassing circular import issues.
-"""
-
-import argparse
 import sqlite3
 import sys
 from pathlib import Path
 
-from app.utils.logger import logger
+from rich import box  # type: ignore  # noqa: PGH003
+from rich.console import Console  # type: ignore  # noqa: PGH003
+from rich.panel import Panel  # type: ignore  # noqa: PGH003
+from rich.prompt import Prompt  # type: ignore  # noqa: PGH003
+from rich.table import Table  # type: ignore  # noqa: PGH003
 
-SEARCH_PATHS = [".", "instance", "app"]
-EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
+console = Console()
+DB_PATH = Path("taskorbit.db")
 
 
-def find_database() -> Path:
-    """Locates the first valid SQLite database file in standard Flask directories.
+def list_tables(conn: sqlite3.Connection) -> None:
+    """Display a summary table of all existing tables and their row counts.
 
-    Returns:
-        Path: The path to the found database file.
-
-    Raises:
-        FileNotFoundError: If no database file is found in SEARCH_PATHS.
+    Queries `sqlite_master` to find user-defined tables, then performs a
+    count query on each to populate a summary table. Tables starting with
+    'sqlite_' are automatically excluded.
     """
-    root = Path.cwd()
-
-    for search_dir in SEARCH_PATHS:
-        path = root / search_dir
-        if not path.exists():
-            continue
-
-        for file in path.iterdir():
-            if file.suffix in EXTENSIONS:
-                return file
-    msg = (
-        f"Could not find a database file in {SEARCH_PATHS} with extensions {EXTENSIONS}"
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     )
-    raise FileNotFoundError(msg)
+    tables = cursor.fetchall()
+
+    if not tables:
+        console.print("[yellow]No tables found in database.[/yellow]")
+        return
+
+    summary_table = Table(title="Database Schema", box=box.SIMPLE, show_header=True)
+    summary_table.add_column("Table Name", style="cyan bold")
+    summary_table.add_column("Row Count", justify="right", style="green")
+
+    def get_row_count(table_name: str) -> str:
+        try:
+            count_cur = conn.execute(f"SELECT COUNT(*) FROM {table_name}")  # noqa: S608
+            count = count_cur.fetchone()[0]
+            return str(count)
+
+        except sqlite3.Error:
+            return "Error"
+
+    for (table_name,) in tables:
+        row_count = get_row_count(table_name)
+        summary_table.add_row(table_name, row_count)
+
+    console.print(summary_table)
+    console.print("")
 
 
-def format_row(row: sqlite3.Row) -> str:
-    """Formats a single database row for display."""
-    return " | ".join(f"{item!s:<15}" for item in row)
+def display_transposed(headers: list[str], rows: list[sqlite3.Row]) -> None:
+    """Render rows in a Side-by-Side Transposed format.
 
+    Constructs a matrix where the first column contains field names and
+    subsequent columns represent individual records. This avoids text wrapping
+    issues common with wide tables.
 
-def execute_query(db_path: Path, sql: str, params: tuple = ()) -> None:
-    """Executes a raw SQL query against the specified database and logs the results.
-
-    Args:
-        db_path (Path): Path to the SQLite database.
-        sql (str): The SQL query string.
-        params (tuple): Parameters for the SQL query.
+    Format:
+    Field       | Record 1 | Record 2 | Record 3 ...
+    ------------+----------+----------+-------------
+    id          | 123      | 456      | 789
+    name        | A        | B        | C
     """
+    if len(rows) > 10:  # noqa: PLR2004
+        console.print(
+            f"[yellow]Warning: Displaying {len(rows)} columns. "
+            "This might wrap weirdly.[/yellow]"
+        )
+
+    table = Table(box=box.ROUNDED, show_lines=True)
+    table.add_column("Field", style="cyan bold", no_wrap=True)
+
+    for i in range(1, len(rows) + 1):
+        table.add_column(f"Rec {i}", style="white", overflow="fold")
+
+    for header in headers:
+        row_values = []
+        for record in rows:
+            val = record[header]
+            val_str = str(val) if val is not None else "[dim]<NULL>[/dim]"
+            row_values.append(val_str)
+
+        table.add_row(header, *row_values)
+
+    console.print(table)
+    console.print(f"[dim i](Found {len(rows)} rows)[/dim i]\n")
+
+
+def execute_query(conn: sqlite3.Connection, sql: str) -> None:
+    """Execute SQL safely and route output to the console.
+
+    Distinguishes between data modification queries (INSERT/UPDATE/DELETE),
+    which print a success message and commit the transaction, and selection
+    queries, which render the transposed results table.
+    """
+    sql = sql.strip()
+    if not sql:
+        return
+
     try:
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+        cursor = conn.cursor()
+        cursor.execute(sql)
 
-            cursor.execute(sql, params)
-            rows = cursor.fetchall()
+        if cursor.description is None:
+            conn.commit()
+            console.print(
+                f"[bold green]✅ Success.[/bold green] Rows affected: {cursor.rowcount}"
+            )
+            return
 
-            if not rows:
-                msg = f"Query executed successfully. Rows affected: {cursor.rowcount}"
-                logger.info(msg)
-                return
+        rows = cursor.fetchall()
+        if not rows:
+            console.print("[yellow]∅ No results found.[/yellow]")
+            return
 
-            headers = list(rows[0].keys())
-            header_str = " | ".join(f"{h:<15}" for h in headers)
-            separator = "-" * len(header_str)
-
-            logger.info(header_str)
-            logger.info(separator)
-
-            for row in rows:
-                logger.info(format_row(row))
+        headers = [d[0] for d in cursor.description]
+        display_transposed(headers, rows)
 
     except sqlite3.Error as e:
-        msg = f"SQLite Error: {e}"
-        logger.exception(msg)
+        console.print(f"[bold red]🔥 SQLite Error:[/bold red] {e}")
+
+
+def interactive_mode() -> None:
+    """Run the Read-Eval-Print Loop (REPL).
+
+    Establishes a persistent database connection and enters a loop accepting
+    user input until an exit command ('q', 'quit', 'exit') or EOF is received.
+    Also displays the schema summary on startup.
+    """
+    if not DB_PATH.exists():
+        console.print(f"[bold red]❌ Error:[/bold red] Database not found at {DB_PATH}")
+        return
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+
+            welcome_msg = (
+                "[bold green]TaskOrbit SQL Shell[/bold green]\n"
+                f"[dim]Connected to: {DB_PATH}[/dim]\n"
+                "Type [bold cyan]'q'[/bold cyan] to quit."
+            )
+            console.print(Panel(welcome_msg, box=box.ROUNDED, expand=False))
+            list_tables(conn)
+
+            while True:
+                try:
+                    query = Prompt.ask("[bold green]SQL[/bold green]")
+
+                    if query.lower() in ("q", "quit", "exit"):
+                        console.print("[bold green]Bye! 👋[/bold green]")
+                        break
+
+                    if not query:
+                        continue
+
+                    execute_query(conn, query)
+
+                except KeyboardInterrupt:
+                    console.print(
+                        "\n[bold yellow]Interrupted. Type 'q' to quit.[/bold yellow]"
+                    )
+                    continue
+                except EOFError:
+                    break
+    except sqlite3.Error as e:
+        console.print(f"[bold red]Critical Error:[/bold red] {e}")
 
 
 def main() -> None:
-    """Main execution entry point parsing command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Execute raw SQL against the SQLite database."
-    )
-    parser.add_argument(
-        "query",
-        nargs="?",
-        help="SQL query to execute. If omitted, enters interactive mode.",
-    )
-    parser.add_argument("--db", type=Path, help="Explicit path to the database file.")
+    """Entry point determining execution mode based on arguments.
 
-    args = parser.parse_args()
-
-    try:
-        db_path = args.db if args.db else find_database()
-        msg = f"Using database at: {db_path.resolve()}"
-        logger.info(msg)
-
-    except FileNotFoundError as e:
-        msg = f"Database file not found: {e}"
-        logger.critical(msg)
-        sys.exit(1)
-
-    if args.query:
-        execute_query(db_path, args.query)
-
+    If command line arguments are present, they are treated as a single SQL
+    query to execute immediately. Otherwise, the interactive shell is started.
+    """
+    if len(sys.argv) > 1:
+        query = " ".join(sys.argv[1:])
+        if DB_PATH.exists():
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                execute_query(conn, query)
+        else:
+            console.print(
+                f"[bold red]❌ Error:[/bold red] Database not found at {DB_PATH}"
+            )
     else:
-        execute_query(db_path, "SELECT name FROM sqlite_master WHERE type='table'")
-        logger.info("\nInteractive Mode (Type 'q' to exit)")
-
-        while True:
-            try:
-                query = input("\nSQL> ").strip()
-
-                if query.lower() in ("q", "quit", "exit"):
-                    break
-
-                if not query:
-                    continue
-                execute_query(db_path, query)
-
-            except KeyboardInterrupt:
-                logger.info("\nExiting...")
-                break
+        interactive_mode()
 
 
 if __name__ == "__main__":
