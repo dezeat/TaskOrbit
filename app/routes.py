@@ -169,7 +169,12 @@ def register() -> WResponse | str:
         try:
             g.db_session.add(new_user)
             g.db_session.commit()
-            result = redirect(url_for("main.login"))
+            if request.headers.get("HX-Request"):
+                resp = make_response("", 200)
+                resp.headers["HX-Redirect"] = url_for("main.login")
+                result = resp
+            else:
+                result = redirect(url_for("main.login"))
 
         except SQLAlchemyError as exc:
             g.db_session.rollback()

@@ -1,4 +1,4 @@
-<div id="register-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+<div id="register-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 {% if not error %}hidden{% endif %}">
   <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-xl font-semibold">Register</h2>
@@ -9,7 +9,7 @@
       <div class="mb-3 text-red-600">{{ error }}</div>
     {% endif %}
 
-    <form id="register-form" action="/register" method="POST" class="space-y-4">
+    <form id="register-form" hx-post="/register" hx-target="#register-modal" hx-swap="outerHTML" class="space-y-4">
       <div>
         <label for="reg-username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
         <input id="reg-username" name="username" required class="w-full px-3 py-2 border rounded" />
