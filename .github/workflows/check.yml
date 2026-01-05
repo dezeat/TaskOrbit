@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
@@ -37,5 +37,8 @@ jobs:
       - name: mypy
         run: poetry run mypy ./app
 
+      - name: Smoke Test (App Startup)
+        run: bash ./development/smoke_test.sh
+
       - name: pytest
-        run: poetry run pytest -q
+        run: poetry run pytest --cov=app --cov-report=term-missing
