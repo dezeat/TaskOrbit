@@ -75,3 +75,14 @@ clean:
 ## Auto-fix lint issues
 checkfix:
 	poetry run ruff check --fix .
+
+## Docker: Build image
+docker-build:
+	docker build -t taskorbit .
+
+## Docker: Run container
+docker-run:
+	docker run -p 8080:8080 --rm taskorbit
+
+## Docker: Build and run
+docker: docker-build docker-run
