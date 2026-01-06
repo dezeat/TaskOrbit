@@ -92,7 +92,7 @@ def fix_app() -> Generator[Flask, None, None]:
 
 
 @pytest.fixture
-def fix_client(fix_app: Flask) -> object:
+def fix_client(fix_app: Flask) -> FlaskClient:
     """Return a Flask test client with database session injection."""
 
     @fix_app.before_request

@@ -1,5 +1,5 @@
 # Minimal Production Dockerfile for TaskOrbit
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # Poetry v2 + Python environment
 ENV POETRY_VERSION=2.0.1 \
@@ -11,12 +11,9 @@ ENV POETRY_VERSION=2.0.1 \
 
 # Install Poetry and runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
     libpq5 \
-    && curl -sSL https://install.python-poetry.org | python3 - \
+    && pip install --no-cache-dir poetry==${POETRY_VERSION} \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-ENV PATH="${POETRY_HOME}/bin:${PATH}"
 
 WORKDIR /app
 
@@ -34,7 +31,7 @@ USER appuser
 EXPOSE 8080
 
 # Gunicorn with app factory pattern
-# app.app:create_app() calls the factory function directly
+# app.app:create_app references the factory function for Gunicorn to call
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8080", \
      "--workers", "4", \
@@ -42,4 +39,4 @@ CMD ["gunicorn", \
      "--timeout", "120", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "app.app:create_app()"]
+     "app.app:create_app"]

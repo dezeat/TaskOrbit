@@ -22,8 +22,9 @@ CREATE USER taskorbit_dbuser WITH PASSWORD :'DB_APP_PASSWORD';
 -- Grant connection to database
 GRANT CONNECT ON DATABASE taskorbit TO taskorbit_dbuser;
 
--- Grant schema usage
+-- Grant schema usage and creation rights
 GRANT USAGE ON SCHEMA taskorbit TO taskorbit_dbuser;
+GRANT CREATE ON SCHEMA taskorbit TO taskorbit_dbuser;
 
 -- Grant table-level privileges (CREATE for table creation, DML operations)
 GRANT CREATE, SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA taskorbit TO taskorbit_dbuser;

@@ -77,7 +77,7 @@ All configuration via environment variables (see [app/config.py](app/config.py))
 
 ## Architecture
 
-- **Base**: `python:3.12-slim` (~180MB final image)
+- **Base**: `python:3.13-slim` (~180MB final image)
 - **Server**: Gunicorn with 4 workers (adjust in Dockerfile)
 - **Dependencies**: Poetry v2 (no virtualenv in container)
 - **User**: Non-root (UID 1000)
@@ -87,15 +87,15 @@ All configuration via environment variables (see [app/config.py](app/config.py))
 
 The [db_init_example.sql](db_init_example.sql) script:
 1. Creates schema `taskorbit`
-2. Creates user `taskorbit_dbuser` with password `todo_pass`
+2. Creates user `taskorbit_dbuser` with password from `DB_APP_PASSWORD` environment variable
 3. Grants minimal required privileges
 4. Runs automatically on first PostgreSQL container start
 
-**Important**: Update password in script before deployment!
+**Important**: Set `DB_APP_PASSWORD` environment variable before starting the container!
 
 ## Notes
 
 - **Slim vs Alpine**: Using slim for better `psycopg2-binary` compatibility
-- **No wsgi.py**: Gunicorn uses factory pattern: `app.app:create_app()`
+- **No wsgi.py**: Gunicorn uses factory pattern: `app.app:create_app`
 - **Workers**: 4 is good for 4-core CPU. Formula: `2 × cores + 1` max.
 - **Tests**: Always use SQLite, see [development/smoke_test.sh](development/smoke_test.sh)

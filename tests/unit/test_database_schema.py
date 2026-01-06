@@ -3,12 +3,15 @@
 from collections.abc import Callable
 from typing import Any as TypingAny
 
+import pytest
+
 from app.config import DatabaseType
 
 
 class TestDatabaseSchemaConfig:
     """Tests for schema and prefix configuration."""
 
+    @pytest.mark.usefixtures("fix_clean_config_cache")
     def test_postgresql_schema_in_connection_string(
         self,
         mock_env_config: Callable[[dict[str, str]], None],  # Updated fixture name

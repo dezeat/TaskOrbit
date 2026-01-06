@@ -21,19 +21,6 @@ from app.utils.logger import logger
 
 app_config = get_config()
 
-# Configure metadata schema for PostgreSQL
-if app_config.DB_TYPE != DatabaseType.SQLITE and app_config.DB_SCHEMA:
-    BaseTable.metadata.schema = app_config.DB_SCHEMA
-    logger.info(
-        f"Configured PostgreSQL schema: {app_config.DB_SCHEMA} "
-        f"(user: {app_config.DB_USER}, host: {app_config.DB_HOST})"
-    )
-elif app_config.DB_TYPE == DatabaseType.SQLITE:
-    logger.info(
-        f"Using SQLite with table prefix: {app_config.DB_SCHEMA}_ "
-        f"(file: {app_config.DB_HOST}/{app_config.DB_NAME})"
-    )
-
 # Define the database engine globally to allow models and routes to import it
 # without circular dependency issues.
 engine = create_engine(
@@ -63,6 +50,20 @@ def create_app(template_folder: str = "templates") -> Flask:
         A fully configured Flask application instance ready to serve requests.
     """
     logger.info("Creating Flask application...")
+
+    # Configure metadata schema for PostgreSQL (inside factory to avoid test pollution)
+    if app_config.DB_TYPE != DatabaseType.SQLITE and app_config.DB_SCHEMA:
+        BaseTable.metadata.schema = app_config.DB_SCHEMA
+        logger.info(
+            f"Configured PostgreSQL schema: {app_config.DB_SCHEMA} "
+            f"(user: {app_config.DB_USER}, host: {app_config.DB_HOST})"
+        )
+    elif app_config.DB_TYPE == DatabaseType.SQLITE:
+        logger.info(
+            f"Using SQLite with table prefix: {app_config.DB_SCHEMA}_ "
+            f"(file: {app_config.DB_HOST}/{app_config.DB_NAME})"
+        )
+
     app = Flask(__name__, template_folder=template_folder)
 
     app.config["SECRET_KEY"] = app_config.FLASK_SECRET

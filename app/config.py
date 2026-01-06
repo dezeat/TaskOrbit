@@ -4,6 +4,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 from typing import cast
+from urllib.parse import quote
 
 from pydantic import MySQLDsn, PostgresDsn, computed_field
 from pydantic_settings import (  # type: ignore  # noqa: PGH003
@@ -83,7 +84,8 @@ class AppConfig(BaseSettings):
             )
             # Append schema as query parameter if specified
             if self.DB_SCHEMA:
-                return f"{base_uri}?options=-c%20search_path%3D{self.DB_SCHEMA}"
+                sanitized_schema = quote(self.DB_SCHEMA, safe="")
+                return f"{base_uri}?options=-c%20search_path%3D{sanitized_schema}"
             return base_uri
 
         if self.DB_TYPE == DatabaseType.MYSQL:
