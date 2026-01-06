@@ -1,21 +1,10 @@
-"""Pytest fixtures for TaskOrbit tests.
+"""Pytest fixtures for TaskOrbit tests."""
 
-This module provides reusable fixtures used across unit and integration
-tests.
-
-The fixtures purposely avoid importing the application factory module at
-import time to prevent side-effects (such as database connections or
-configuration evaluation) leaking into the test runner.
-"""
-
-import os
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any as TypingAny
-from typing import ContextManager, Protocol, cast
 
 import pytest
-from flask import Flask
+from flask import Flask, g
 from flask.testing import FlaskClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -25,35 +14,55 @@ from app.routes import bp as main_bp
 from app.utils.security import hash_password
 
 
-class TestApp(Protocol):
-    """Minimal Protocol describing the test Flask app used in fixtures.
+@pytest.fixture
+def fix_clean_config_cache() -> Generator[None, None, None]:
+    """Ensures configuration cache is cleared before and after tests."""
+    # Delayed import to avoid top-level side effects
+    from app.config import get_config
 
-    Allows attaching test-only attributes like ``test_db_session`` while
-    keeping static type-checkers satisfied.
-    """
-
-    # Core attributes/methods used by the tests
-    config: dict
-    test_db_session: scoped_session
-    register_blueprint: Callable[[TypingAny], None]
-    app_context: Callable[[], ContextManager[TypingAny]]
-    before_request: Callable[[Callable[..., TypingAny]], None]
-    teardown_appcontext: Callable[[Callable[..., TypingAny]], None]
-    test_client: Callable[..., TypingAny]
+    get_config.cache_clear()
+    yield
+    get_config.cache_clear()
 
 
 @pytest.fixture
-def fix_app() -> Generator[TestApp, None, None]:
-    """Create a Flask application instance configured for testing.
+def mock_env_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[dict[str, str]], None]:
+    """Helper to set env vars and reload config within a test.
 
-    Uses an in-memory SQLite engine and a scoped session bound to that engine.
+    Uses `monkeypatch` so env vars are automatically restored by pytest
+    after the test finishes.
     """
-    test_config = {
-        "TESTING": True,
-        "WTF_CSRF_ENABLED": False,
-    }
 
-    # Create a dedicated in-memory engine for tests
+    def _apply_env(env_vars: dict[str, str]) -> None:
+        for key, value in env_vars.items():
+            monkeypatch.setenv(key, value)
+
+        # We must clear cache again so the next call to get_config()
+        # reads the new monkeypatched env vars.
+        from app.config import get_config
+
+        get_config.cache_clear()
+
+    return _apply_env
+
+
+@pytest.fixture
+def fix_config() -> Callable[[], object]:
+    """Returns the current app configuration."""
+
+    def _get_config() -> object:
+        from app.config import get_config
+
+        return get_config()
+
+    return _get_config
+
+
+@pytest.fixture
+def fix_app() -> Generator[Flask, None, None]:
+    """Create a Flask application instance configured for testing."""
     test_engine = create_engine(
         "sqlite:///:memory:", connect_args={"check_same_thread": False}
     )
@@ -61,23 +70,20 @@ def fix_app() -> Generator[TestApp, None, None]:
         sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
     )
 
-    # Build a lightweight Flask app instance without importing app.app
-    # Use the application's templates folder so Jinja can find templates like
-    # 'login.html' used by the routes.
     templates_path = Path.cwd() / "app" / "templates"
-    # Create a Flask app and cast it to TestApp so type-checkers accept
-    # attaching the `test_db_session` attribute below.
-    app = cast("TestApp", Flask(__name__, template_folder=str(templates_path)))
-    app.config.update(test_config)
-    app.config["SECRET_KEY"] = "test-secret"  # noqa: S105
+    app = Flask(__name__, template_folder=str(templates_path))
 
-    # Register the application's blueprint so routes are available
+    app.config.update(
+        {
+            "TESTING": True,
+            "WTF_CSRF_ENABLED": False,
+            "SECRET_KEY": "test-secret",
+        }
+    )
+
     app.register_blueprint(main_bp)
+    app.test_db_session = test_db_session  # type: ignore[attr-defined]
 
-    # Attach the test session to the app for access in other fixtures/tests
-    app.test_db_session = test_db_session
-
-    # Create tables on the test engine
     with app.app_context():
         BaseTable.metadata.create_all(bind=test_engine)
         yield app
@@ -86,78 +92,26 @@ def fix_app() -> Generator[TestApp, None, None]:
 
 
 @pytest.fixture
-def fix_client(fix_app: TestApp) -> FlaskClient:
-    """Return a standard Flask test client."""
+def fix_client(fix_app: Flask) -> object:
+    """Return a Flask test client with database session injection."""
 
-    # Ensure each request has access to the test session via g.db_session
     @fix_app.before_request
     def _attach_session() -> None:
-        from flask import g
-
-        g.db_session = fix_app.test_db_session
+        g.db_session = fix_app.test_db_session  # type: ignore[attr-defined]
 
     @fix_app.teardown_appcontext
-    def _remove_session(exception: Exception | None) -> None:  # noqa: ARG001
-        fix_app.test_db_session.remove()
+    def _remove_session(error: BaseException | None) -> None:  # noqa: ARG001
+        if hasattr(g, "db_session"):
+            g.db_session.remove()
 
     return fix_app.test_client()
 
 
 @pytest.fixture
-def fix_config_env() -> Generator[Callable[[dict[str, str]], None], None, None]:
-    """Fixture to temporarily set environment variables and clear config cache.
-
-    Yields a function that accepts a dict of env vars to set.
-    Automatically restores original environment and clears cache after test.
-    """
-    original_env = os.environ.copy()
-
-    def _set_env(env_vars: dict[str, str]) -> None:
-        """Set environment variables and clear config cache."""
-        os.environ.update(env_vars)
-        from app.config import get_config
-
-        get_config.cache_clear()
-
-    yield _set_env
-
-    # Cleanup: restore original environment and clear cache
-    os.environ.clear()
-    os.environ.update(original_env)
-    from app.config import get_config
-
-    get_config.cache_clear()
-
-
-@pytest.fixture
-def fix_config() -> Callable[[], "AppConfig"]:  # noqa: F821
-    """Fixture that returns the get_config function for testing.
-
-    Use with fix_config_env to test configuration with different env vars.
-    """
-
-    def _get_config() -> "AppConfig":  # noqa: F821
-        from app.config import get_config
-
-        return get_config()
-
-    return _get_config
-
-    return fix_app.test_client()
-
-
-@pytest.fixture
-def fix_auth_client(fix_client: FlaskClient, fix_app: TestApp) -> FlaskClient:
-    """Return a Flask test client authenticated with a standard user.
-
-    Seeds the in-memory DB with a test user and logs in so the client has a
-    valid session.
-    """
-    with fix_app.app_context():
-        user = UserTable(name="testuser", hashed_password=hash_password("password123"))
-        fix_app.test_db_session.add(user)
-        fix_app.test_db_session.commit()
-
+def fix_auth_client(fix_client: FlaskClient, fix_app: Flask) -> FlaskClient:
+    """Return a Flask test client authenticated with a standard user."""
+    user = UserTable(name="testuser", hashed_password=hash_password("password123"))
+    fix_app.test_db_session.add(user)  # type: ignore[attr-defined]
+    fix_app.test_db_session.commit()  # type: ignore[attr-defined]
     fix_client.post("/login", data={"username": "testuser", "password": "password123"})
-
     return fix_client

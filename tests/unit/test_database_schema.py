@@ -11,11 +11,11 @@ class TestDatabaseSchemaConfig:
 
     def test_postgresql_schema_in_connection_string(
         self,
-        fix_config_env: Callable[[dict[str, str]], None],
+        mock_env_config: Callable[[dict[str, str]], None],  # Updated fixture name
         fix_config: Callable[[], TypingAny],
     ) -> None:
         """Test that PostgreSQL connection string includes schema parameter."""
-        fix_config_env(
+        mock_env_config(
             {
                 "DB_TYPE": "postgresql",
                 "DB_SCHEMA": "test_schema",
@@ -35,18 +35,23 @@ class TestDatabaseSchemaConfig:
         assert "search_path" in uri
         assert "test_schema" in uri
 
-    def test_default_schema_value(self, fix_config: Callable[[], TypingAny]) -> None:
+    def test_default_schema_value(
+        self,
+        mock_env_config: Callable[[dict[str, str]], None],
+        fix_config: Callable[[], TypingAny],
+    ) -> None:
         """Test that default DB_SCHEMA is 'taskorbit'."""
+        mock_env_config({})  # Reset environment to defaults
         config = fix_config()
         assert config.DB_SCHEMA == "taskorbit"
 
     def test_sqlite_connection_string_format(
         self,
-        fix_config_env: Callable[[dict[str, str]], None],
+        mock_env_config: Callable[[dict[str, str]], None],  # Updated fixture name
         fix_config: Callable[[], TypingAny],
     ) -> None:
         """Test SQLite connection string format."""
-        fix_config_env(
+        mock_env_config(
             {
                 "DB_TYPE": "sqlite",
                 "DB_NAME": "test.db",

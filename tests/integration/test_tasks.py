@@ -9,14 +9,14 @@ validation error, reflecting the app's current behavior.
 
 import uuid
 
+from flask import Flask
 from flask.testing import FlaskClient
 from sqlalchemy import select
 
 from app.models import TaskTable
-from tests.conftest import TestApp
 
 
-def test_add_task_flow(fix_auth_client: FlaskClient, fix_app: TestApp) -> None:
+def test_add_task_flow(fix_auth_client: FlaskClient, fix_app: Flask) -> None:
     """Create a task via the `/add_task` endpoint and verify persistence.
 
     What: POST a new task payload while authenticated and check the
@@ -41,9 +41,9 @@ def test_add_task_flow(fix_auth_client: FlaskClient, fix_app: TestApp) -> None:
     # successful creation (200 + HX-Trigger) or a 400 validation response.
     if response.status_code == 200:
         assert response.headers.get("HX-Trigger") == "newTask"
-
         with fix_app.app_context():
-            task = fix_app.test_db_session.scalars(
+            test_db_session = fix_app.test_db_session  # type: ignore[attr-defined]
+            task = test_db_session.scalars(
                 select(TaskTable).where(TaskTable.name == "Integration Task")
             ).first()
             assert task is not None
