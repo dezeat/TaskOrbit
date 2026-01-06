@@ -5,13 +5,17 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: taskorbit
-      POSTGRES_USER: taskorbit
-      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${POSTGRES_DB:-taskorbit}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Pass app password for init script
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Mount init script (runs on first start)
+      - ./db_init_example.sql:/docker-entrypoint-initdb.d/01_init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskorbit"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,15 +24,16 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${HOST_PORT:-8080}:8080"
     environment:
       FLASK_SECRET: ${FLASK_SECRET}
       DB_TYPE: postgresql
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: taskorbit
-      DB_USER: taskorbit
-      DB_PASS: ${DB_PASS}
+      DB_NAME: ${POSTGRES_DB:-taskorbit}
+      DB_USER: ${DB_APP_USER:-taskorbit_dbuser}
+      DB_PASS: ${DB_APP_PASSWORD}
+      DB_SCHEMA: ${DB_SCHEMA:-taskorbit}
     depends_on:
       db:
         condition: service_healthy

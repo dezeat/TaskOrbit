@@ -47,6 +47,11 @@ class AppConfig(BaseSettings):
     DB_PASS: str | None = None
     DB_ECHO: bool = False
 
+    # Schema/Prefix for table isolation
+    # PostgreSQL: Schema name (e.g., "taskorbit")
+    # SQLite: Table prefix (e.g., "taskorbit_")
+    DB_SCHEMA: str = "taskorbit"
+
     @computed_field
     def sqlalchemy_database_uri(self) -> str:
         """Construct the SQLAlchemy connection string.
@@ -65,7 +70,8 @@ class AppConfig(BaseSettings):
             raise ValueError(msg)
 
         if self.DB_TYPE == DatabaseType.POSTGRESQL:
-            return str(
+            # Add schema as query parameter for PostgreSQL
+            base_uri = str(
                 PostgresDsn.build(
                     scheme="postgresql+psycopg2",
                     username=self.DB_USER,
@@ -75,6 +81,10 @@ class AppConfig(BaseSettings):
                     path=self.DB_NAME,
                 )
             )
+            # Append schema as query parameter if specified
+            if self.DB_SCHEMA:
+                return f"{base_uri}?options=-c%20search_path%3D{self.DB_SCHEMA}"
+            return base_uri
 
         if self.DB_TYPE == DatabaseType.MYSQL:
             return str(

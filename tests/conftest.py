@@ -8,9 +8,11 @@ import time to prevent side-effects (such as database connections or
 configuration evaluation) leaking into the test runner.
 """
 
+import os
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any as TypingAny
-from typing import Callable, ContextManager, Generator, Protocol, cast
+from typing import ContextManager, Protocol, cast
 
 import pytest
 from flask import Flask
@@ -65,7 +67,7 @@ def fix_app() -> Generator[TestApp, None, None]:
     templates_path = Path.cwd() / "app" / "templates"
     # Create a Flask app and cast it to TestApp so type-checkers accept
     # attaching the `test_db_session` attribute below.
-    app = cast(TestApp, Flask(__name__, template_folder=str(templates_path)))
+    app = cast("TestApp", Flask(__name__, template_folder=str(templates_path)))
     app.config.update(test_config)
     app.config["SECRET_KEY"] = "test-secret"  # noqa: S105
 
@@ -97,6 +99,49 @@ def fix_client(fix_app: TestApp) -> FlaskClient:
     @fix_app.teardown_appcontext
     def _remove_session(exception: Exception | None) -> None:  # noqa: ARG001
         fix_app.test_db_session.remove()
+
+    return fix_app.test_client()
+
+
+@pytest.fixture
+def fix_config_env() -> Generator[Callable[[dict[str, str]], None], None, None]:
+    """Fixture to temporarily set environment variables and clear config cache.
+
+    Yields a function that accepts a dict of env vars to set.
+    Automatically restores original environment and clears cache after test.
+    """
+    original_env = os.environ.copy()
+
+    def _set_env(env_vars: dict[str, str]) -> None:
+        """Set environment variables and clear config cache."""
+        os.environ.update(env_vars)
+        from app.config import get_config
+
+        get_config.cache_clear()
+
+    yield _set_env
+
+    # Cleanup: restore original environment and clear cache
+    os.environ.clear()
+    os.environ.update(original_env)
+    from app.config import get_config
+
+    get_config.cache_clear()
+
+
+@pytest.fixture
+def fix_config() -> Callable[[], "AppConfig"]:  # noqa: F821
+    """Fixture that returns the get_config function for testing.
+
+    Use with fix_config_env to test configuration with different env vars.
+    """
+
+    def _get_config() -> "AppConfig":  # noqa: F821
+        from app.config import get_config
+
+        return get_config()
+
+    return _get_config
 
     return fix_app.test_client()
 

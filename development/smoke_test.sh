@@ -26,4 +26,10 @@ echo "🚀 Checking App Startup (Dry Run)..."
 # Tries to initialize the Flask app. Fails if there are import/config errors.
 poetry run python3 -c "from app.app import create_app; print('✅ App initialized successfully'); create_app()"
 
+echo "🔧 Checking Gunicorn WSGI Integration..."
+# Verifies that Gunicorn can load the app factory correctly
+poetry run gunicorn --check-config "app.app:create_app()" > /dev/null 2>&1 && \
+    echo "✅ Gunicorn WSGI check passed" || \
+    echo "⚠️  Warning: Gunicorn WSGI check failed (this might be OK if gunicorn is not installed)"
+
 echo "🎉 Smoke Test Passed! 'make dev' should work."

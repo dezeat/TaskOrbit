@@ -101,7 +101,8 @@ def login() -> WResponse | str:
     if request.method == "GET":
         try:
             return render_template("login.html")
-        except TemplateNotFound:
+        except TemplateNotFound as e:
+            logger.error("Login template not found: %s", e)
             return "Login"
 
     username = request.form.get("username")
