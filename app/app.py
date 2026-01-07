@@ -105,7 +105,7 @@ def _init_db(app: Flask) -> None:
             logger.info("Database connection successful")
 
             logger.info("Creating tables if they don't exist...")
-            BaseTable.metadata.create_all(bind=engine)
+            BaseTable.metadata.create_all(bind=engine, checkfirst=True)
 
             # Log created tables
             inspector = inspect(engine)
@@ -145,3 +145,7 @@ def _init_db(app: Flask) -> None:
         persistence (e.g., during failed logic or read-only operations).
         """
         db_session.remove()
+
+
+# WSGI entrypoint for Gunicorn
+app = create_app()

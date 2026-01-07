@@ -112,26 +112,24 @@ def login() -> WResponse | str:
         select(UserTable).where(UserTable.name == username)
     ).all()
 
-    response: WResponse | str | None = None
-    if not users:
-        response = make_response("User not found", 200)
-    else:
-        user = users[0]
-        if not password or not verify_password(password, user.hashed_password):
-            response = make_response("Invalid password", 200)
-        else:
-            session["uid"] = user.id
-            return redirect(url_for("main.home"))
-
-    if response is not None:
-        return render_template(
-            "login.html",
-            error=(
-                response.get_data().decode() if hasattr(response, "get_data") else None
-            ),
+    error_message = None
+    if (
+        not users
+        or not password
+        or not verify_password(password, users[0].hashed_password)
+    ):
+        error_message = (
+            "The username and password combination could not be resolved. "
+            "Please try again."
         )
+    else:
+        session["uid"] = users[0].id
+        return redirect(url_for("main.home"))
 
-    return None
+    return render_template(
+        "login.html",
+        error=error_message,
+    )
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -149,12 +147,20 @@ def register() -> WResponse | str:
 
     username = request.form.get("username")
     password = request.form.get("password")
+    password_confirm = request.form.get("password_confirm")
+
+    # Check if passwords match first (prioritize mismatch error)
+    if password != password_confirm:
+        return render_template(
+            "partials/register_popup.html", register_error="Passwords do not match"
+        )
 
     try:
         user_input = UserCreate(name=username or "", password=password or "")
     except ValidationError:
         return render_template(
-            "partials/register_popup.html", error="Invalid input (Password min 8 chars)"
+            "partials/register_popup.html",
+            register_error="Invalid input (Password min 8 chars)",
         )
 
     existing = g.db_session.scalars(
@@ -162,7 +168,9 @@ def register() -> WResponse | str:
     ).first()
 
     if existing:
-        result = render_template("partials/register_popup.html", error="User exists")
+        result = render_template(
+            "partials/register_popup.html", register_error="User exists"
+        )
     else:
         hashed = hash_password(user_input.password)
         new_user = UserTable(name=user_input.name, hashed_password=hashed)
@@ -181,7 +189,7 @@ def register() -> WResponse | str:
             g.db_session.rollback()
             logger.exception("Error creating user: %s", exc)
             result = render_template(
-                "partials/register_popup.html", error="Could not create user"
+                "partials/register_popup.html", register_error="Could not create user"
             )
 
     if result is None:

@@ -10,6 +10,11 @@
 <body class="bg-gray-50 flex flex-col items-center justify-center min-h-screen font-sans text-gray-800">
 
     <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        {% if error %}
+        <div class="mb-4 p-3 rounded bg-red-100 text-red-700 border border-red-200 text-center">
+            {{ error }}
+        </div>
+        {% endif %}
         
         <div class="text-center mb-8">
             <h1 class="text-3xl font-bold tracking-tight mb-2">Task Orbit</h1>

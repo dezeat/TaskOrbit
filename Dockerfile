@@ -39,4 +39,4 @@ CMD ["gunicorn", \
      "--timeout", "120", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "app.app:create_app"]
+     "app.app:app"]
