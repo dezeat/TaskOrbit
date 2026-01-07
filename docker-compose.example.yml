@@ -1,39 +1,36 @@
-version: '3.8'
-
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-taskorbit}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      # Pass app password for init script
       DB_APP_PASSWORD: ${DB_APP_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Mount init script (runs on first start)
-      - ./db_init_example.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./postgres/init_taskorbit.sh:/docker-entrypoint-initdb.d/01_init.sh:Z
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   app:
-    build: .
+    image: task-orbit:test
     restart: unless-stopped
     ports:
-      - "${HOST_PORT:-8080}:8080"
+      - "${HOST_PORT}:8080"
     environment:
       FLASK_SECRET: ${FLASK_SECRET}
-      DB_TYPE: postgresql
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: ${POSTGRES_DB:-taskorbit}
-      DB_USER: ${DB_APP_USER:-taskorbit_dbuser}
+      DB_TYPE: ${DB_TYPE}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_APP_USER}
       DB_PASS: ${DB_APP_PASSWORD}
-      DB_SCHEMA: ${DB_SCHEMA:-taskorbit}
+      DB_SCHEMA: ${DB_SCHEMA}
     depends_on:
       db:
         condition: service_healthy
