@@ -56,6 +56,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         hash_bytes = hashed_password.encode("utf-8")
 
         return bcrypt.checkpw(pwd_bytes, hash_bytes)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
         # Handles malformed hashes or incompatible encoding
+        from app.utils.logger import logger
+
+        logger.warning("Password verification failed due to invalid hash format: %s", e)
         return False

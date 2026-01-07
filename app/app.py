@@ -11,10 +11,10 @@ during creation.
 from __future__ import annotations
 
 from flask import Flask, g
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from app.config import get_config
+from app.config import DatabaseType, get_config
 from app.models import BaseTable
 from app.routes import bp as main_bp
 from app.utils.logger import logger
@@ -49,15 +49,37 @@ def create_app(template_folder: str = "templates") -> Flask:
     Returns:
         A fully configured Flask application instance ready to serve requests.
     """
+    logger.info("Creating Flask application...")
+
+    # Configure metadata schema for PostgreSQL (inside factory to avoid test pollution)
+    if app_config.DB_TYPE != DatabaseType.SQLITE and app_config.DB_SCHEMA:
+        BaseTable.metadata.schema = app_config.DB_SCHEMA
+        logger.info(
+            f"Configured PostgreSQL schema: {app_config.DB_SCHEMA} "
+            f"(user: {app_config.DB_USER}, host: {app_config.DB_HOST})"
+        )
+    elif app_config.DB_TYPE == DatabaseType.SQLITE:
+        logger.info(
+            f"Using SQLite with table prefix: {app_config.DB_SCHEMA}_ "
+            f"(file: {app_config.DB_HOST}/{app_config.DB_NAME})"
+        )
+
     app = Flask(__name__, template_folder=template_folder)
 
     app.config["SECRET_KEY"] = app_config.FLASK_SECRET
     app.config["SQLALCHEMY_DATABASE_URI"] = app_config.SQLALCHEMY_DATABASE_URI
 
+    logger.info(
+        f"Flask configured (debug={app_config.FLASK_DEBUG}, "
+        f"host={app_config.FLASK_HOST}:{app_config.FLASK_PORT})"
+    )
+
     _init_db(app)
 
     app.register_blueprint(main_bp)
+    logger.info("Blueprints registered successfully")
 
+    logger.info("Flask application created successfully")
     return app
 
 
@@ -77,13 +99,30 @@ def _init_db(app: Flask) -> None:
     """
     with app.app_context():
         try:
+            logger.info("Testing database connection...")
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
+            logger.info("Database connection successful")
 
-            BaseTable.metadata.create_all(bind=engine)
+            logger.info("Creating tables if they don't exist...")
+            BaseTable.metadata.create_all(bind=engine, checkfirst=True)
+
+            # Log created tables
+            inspector = inspect(engine)
+            schema = (
+                app_config.DB_SCHEMA
+                if app_config.DB_TYPE != DatabaseType.SQLITE
+                else None
+            )
+            tables = inspector.get_table_names(schema=schema)
+            logger.info(f"Database tables ready: {tables}")
 
         except Exception as e:
-            logger.error(f"Database connection failed: {e}")
+            logger.error(
+                f"Database initialization failed: {e} "
+                f"(type={app_config.DB_TYPE}, host={app_config.DB_HOST}, "
+                f"db={app_config.DB_NAME})"
+            )
             raise
 
     @app.before_request
@@ -106,3 +145,7 @@ def _init_db(app: Flask) -> None:
         persistence (e.g., during failed logic or read-only operations).
         """
         db_session.remove()
+
+
+# WSGI entrypoint for Gunicorn
+app = create_app()

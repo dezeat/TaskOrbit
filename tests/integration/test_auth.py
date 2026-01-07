@@ -37,7 +37,14 @@ class TestAuthRoutes:
         authenticate and that the app redirects to the expected page on
         success.
         """
-        fix_client.post("/register", data={"username": "new", "password": "pwd12345"})
+        fix_client.post(
+            "/register",
+            data={
+                "username": "new",
+                "password": "pwd12345",
+                "password_confirm": "pwd12345",
+            },
+        )
 
         response = fix_client.post(
             "/login",
@@ -72,4 +79,6 @@ class TestAuthRoutes:
         )
 
         assert response.status_code == 200
-        assert b"Invalid" in response.data or b"User not found" in response.data
+        assert (
+            b"username and password combination could not be resolved" in response.data
+        )

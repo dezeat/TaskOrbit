@@ -1,155 +1,142 @@
 # TaskOrbit
 
-TaskOrbit is a lightweight task management web application built with Flask and SQLAlchemy. It provides a simple UI for creating, editing, toggling, searching and deleting tasks, with a minimal database-backed backend suitable for local development and demos.
+## Project Overview
 
-## Features
+TaskOrbit is a task management web-app. The app is built with Flask and SQLAlchemy, ensuring modularity and scalability. It supports schema-based database isolation for PostgreSQL and uses SQLite as the default database for local development. 
 
-- Simple task CRUD (create, read, update, delete)
-- Toggle task completion
-- List filtering by status (active / done)
-- Server-side templates with partials for fast UI updates
-- Pluggable DB configuration via YAML (SQLite local or server databases)
-- Seeder to populate an initial admin user and sample tasks
+This project was developed as a hobby to learn and explore:
+- SQLAlchemy for database management
+- HTMX for dynamic front-end interactions
+- Pydantic for data validation
+- Python web development with Flask
+- General web development practices
 
-- HTMX-powered partial updates for a snappy UX (used in templates/partials)
-- Uses `pydantic` dataclasses for lightweight domain models and `SQLAlchemy` for persistence
 
-## Quick Links
+## Design Decisions
 
-- Project entry: [main.py](main.py)
-- Flask app factory: [app/app.py](app/app.py)
-- DB models: [app/utils/db/models.py](app/utils/db/models.py)
-- DB config factory: [app/utils/db/config.py](app/utils/db/config.py)
-- DB factory + engine: [app/utils/db/database.py](app/utils/db/database.py)
-- Seeder: [app/utils/db/seed.py](app/utils/db/seed.py)
-- Default DB config: [app/utils/db/default_db_config.yaml](app/utils/db/default_db_config.yaml)
+### Application-Managed Table Creation
+TaskOrbit uses SQLAlchemy ORM for managing database tables. The application dynamically creates tables based on the configured database backend.
 
-## Getting Started (recommended)
+### Schema-Based Isolation for PostgreSQL
+For PostgreSQL, TaskOrbit uses a dedicated schema (`taskorbit`) to isolate application tables. This ensures better organization and security.
 
-These instructions assume you are developing on Linux and have Python 3.10+ installed.
+### SQLite as Default for Local Development
+SQLite is used as the default database for local development. It simplifies setup and eliminates the need for a database server.
 
-1. Fork the repository on GitHub and clone your fork:
-
-```bash
-git clone <your-fork-url>
-cd TaskOrbit
-```
-
-2. (Recommended) Install with Poetry (preferred for this project):
-
-```bash
-# Install poetry if you don't have it
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Install dependencies
-poetry install
-
-# Activate a shell with the virtual env
-poetry shell
-```
-
-Alternative: Create a virtualenv and use pip to install the minimal deps listed in `pyproject.toml`.
-
-## Configure and Run (local development)
-
-By default the application will use the YAML file at `app/utils/db/default_db_config.yaml`, which points to a local SQLite file. To run the app locally:
-
-```bash
-# (optional) seed the database
-python -m app.utils.db.seed app/utils/db/default_db_config.yaml
-
-# Run the app (uses the config at app/utils/db/default_db_config.yaml by default)
-python main.py
-```
-
-Environment variables supported:
-
-- `FLASK_HOST` — host to bind (default 127.0.0.1)
-- `FLASK_PORT` — port (default 5000)
-- `FLASK_DEBUG` — enable debug mode (1/true)
-- `FLASK_SECRET` — secret key for Flask sessions
-
-Example run binding to all interfaces:
-
-```bash
-FLASK_HOST=0.0.0.0 FLASK_PORT=5000 FLASK_DEBUG=1 FLASK_SECRET=dev_secret python main.py
-```
-
-## Database
-
-The application uses SQLAlchemy with a small wrapper in `app/utils/db`. The factory supports local SQLite config (used by default) and server configs for Postgres/MySQL via the YAML configuration.
-
-Default config file: [app/utils/db/default_db_config.yaml](app/utils/db/default_db_config.yaml)
-
-Seeding the DB (creates an `admin` user and a couple sample tasks):
-
-```bash
-python -m app.utils.db.seed app/utils/db/default_db_config.yaml
-```
-
-If you want to point to another database, create a YAML file following the structure in `default_db_config.yaml` and pass its path to `main.py` or `app.utils.db.seed`.
-
-## Learning Goals
-
-- Learn HTMX by exploring and extending the server-rendered partials in `templates/partials` which the app updates via HTMX triggers.
-- Practice Python dataclasses and `pydantic`-backed models (see `app/utils/db/models.py`).
-- Learn SQLAlchemy ORM usage and session management through `app/utils/db/database.py` and the request session lifecycle in `app/app.py`.
-
-This project is intentionally small so you can safely experiment with HTMX-driven UI patterns and the data layer without large infrastructure overhead.
-
-## Project Structure
-
-- `main.py` — application entrypoint that initializes DB and runs the Flask app
-- `app/` — Flask application package
-	- `app/app.py` — app factory and HTTP routes
-	- `templates/` & `static/` — UI templates and static assets
-	- `utils/db/` — DB models, config factory, engine and seeder
-- `utils/` — helper utilities (logger, exceptions)
-
-## Development
-
-Recommended workflow:
-
-1. Create a feature branch from `main`.
-2. Run the app locally and iterate on templates or backend code.
-3. Run the seeder if you need demo data.
-4. Add tests in `tests/` and run `pytest`.
-
-Useful commands:
-
-```bash
-# Run tests
-poetry run pytest
-
-# Lint with ruff
-poetry run ruff check .
-```
-
-## Contributing
-
-Contributions are welcome. Open an issue or a pull request describing the change. For larger changes, open an issue first to discuss the design.
-
-Guidelines:
-
-- Keep changes minimal and focused.
-- Add tests for new behavior.
-- Ensure linter passes (`ruff`).
-
-## Troubleshooting
-
-- If the server fails to start, check that the DB config file exists and points to a writable path.
-- If you see SQLAlchemy errors, confirm the target DB driver is installed (e.g., `psycopg2` for Postgres).
-
-## License
-
-This project is licensed under the MIT License.
+### Least-Privilege Database Access
+The application uses a dedicated database user (`taskorbit_dbuser`) with minimal privileges to enhance security.
 
 ---
 
-If you want, I can also:
+## Repository Structure
 
-- Add a `Makefile` target to run the app with the default config.
-- Create a minimal `requirements.txt` for pip installs.
-- Add a short developer guide with VS Code launch configurations.
+- **app/**: Contains the core application logic.
+  - `app.py`: Application factory for creating the Flask app.
+  - `config.py`: Configuration management using Pydantic.
+  - `models.py`: SQLAlchemy ORM models.
+  - `routes.py`: API routes and endpoints.
+  - `schemas.py`: Data validation schemas.
+  - `static/`: Static assets (icons, images, JavaScript).
+  - `templates/`: HTML templates for the frontend.
+  - `utils/`: Utility modules (logging, security, database helpers).
+- **development/**: Development utilities.
+  - `query.py`: Database query helpers.
+  - `seed.py`: Database seeding script.
+  - `smoke_test.sh`: Smoke test script.
+- **tests/**: Unit and integration tests.
+  - `unit/`: Unit tests for isolated components.
+  - `integration/`: Integration tests for end-to-end functionality.
+- **Dockerfile**: Docker image definition for production.
+- **docker-compose.example.yml**: Example Docker Compose configuration for containerized deployment.
+- **db_init_example.sql**: SQL script for initializing PostgreSQL schema and user.
+- **pyproject.toml**: Poetry configuration for dependency management.
 
-Please tell me which of those you'd like next.
+---
+
+## Local Development
+
+### Requirements
+- Python 3.13+
+- Poetry for dependency management
+
+### Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repo/taskorbit.git
+   cd taskorbit
+   ```
+2. Install dependencies:
+   ```bash
+   poetry install
+   ```
+3. Start the application:
+   ```bash
+   poetry run python main.py
+   ```
+
+### Default Behavior
+- SQLite is used as the default database.
+- The application runs on `127.0.0.1:5000` with debug mode enabled.
+
+---
+
+## Containerized Deployment
+
+### Using Docker Compose
+1. Set environment variables:
+   ```bash
+   export POSTGRES_PASSWORD=your-password
+   export DB_APP_PASSWORD=your-app-password
+   ```
+2. Start the containers:
+   ```bash
+   docker-compose -f docker-compose.example.yml up
+   ```
+
+### PostgreSQL Schema and User Setup
+- The `db_init_example.sql` script creates the `taskorbit` schema and a dedicated user with minimal privileges.
+
+### Startup Flow
+- PostgreSQL initializes the schema and user on the first start.
+- The application connects to the database and creates tables dynamically.
+
+---
+
+## Configuration
+
+### Required Environment Variables
+- `FLASK_SECRET`: Secret key for Flask.
+- `DB_TYPE`: Database type (`sqlite` or `postgresql`).
+- `DB_HOST`: Database host.
+- `DB_PORT`: Database port.
+- `DB_NAME`: Database name.
+- `DB_USER`: Database user.
+- `DB_PASS`: Database password.
+- `DB_SCHEMA`: Database schema (PostgreSQL only).
+
+### Deployment-Specific Configuration
+- The `.env` file is used for local development.
+- Environment variables are used for production.
+
+---
+
+## Testing
+
+### Unit Tests
+- Located in `tests/unit/`.
+- Test isolated components like database models and utility functions.
+
+### Integration Tests
+- Located in `tests/integration/`.
+- Test end-to-end functionality, including API routes and database interactions.
+
+### Running Tests
+1. Install development dependencies:
+   ```bash
+   poetry install --with dev
+   ```
+2. Run tests:
+   ```bash
+   pytest
+   ```
+
